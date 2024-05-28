@@ -11,5 +11,5 @@ BAMtools (v 2.5.2). The bigWig files with the ChIP-seq signal scaled to 1 millio
 
 ### Scripts in this folder
 **1. macs2_se.sh** \
-This script uses MACS2 to detect narrowPeaks from the aligned data for the H3K27Ac histone mark followed by the ROSE algorithm to predict super-enhancers.
-The accompanying scripts ROSE_utils.py and ROSE_main.py were downloaded from [young_computation/rose/](https://bitbucket.org/young_computation/rose/src/master/).
+This script uses [MACS2](https://pypi.org/project/MACS2/) to detect narrowPeaks from the aligned data for the H3K27Ac histone mark followed by ChIP-R ([rhysnewell/ChIP-R](https://github.com/rhysnewell/ChIP-R)) to detect the consensus peaksets.
+The consensus peaks are fed to the arank ordering of super-enhancers (ROSE) algortihm ([stjude/ROSE/](https://github.com/stjude/ROSE/tree/master)).
