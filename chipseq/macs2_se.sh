@@ -4,7 +4,7 @@
 alias BEGINCOMMENT="if [ ]; then"
 alias ENDCOMMENT="fi"
 
-### Introducing variables for paths so we can change them later and reuse the script ###
+### Introducing variables for paths ###
 path_to_project="home/anna/data1/NGS_data_current/DAG_MCL/chip/nfcore_h3k27ac"
 path_to_bwa_files="$path_to_project""/bwa/mergedLibrary/"
 path_to_macs2_files="$path_to_bwa_files""narrowPeak/"
@@ -15,7 +15,6 @@ mcl=(MCL1 MCL2 MCL3 MCL4 MCL5)
 naive=(Bnaive1 Bnaive2 Bnaive3)
 germinal=(Bgerminal1 Bgerminal2)
 
-BEGINCOMMENT
 ### Calling narrowPeaks with MACS2 ###
 for i in ${samples[*]};do
     macs2 callpeak -t "$path_to_bwa_files"${i}.mLb.clN.sorted.bam \
@@ -23,7 +22,6 @@ for i in ${samples[*]};do
                    -n ${i} -g hs \
                    --outdir "$path_to_macs2_files" 2> "$path_to_macs2_files"${i}_macs2.log 
 done
-ENDCOMMENT
 
 ### Merging replicates with CHIP-R ###
 chipr -i "$path_to_macs2_files"MCL1_peaks.narrowPeak "$path_to_macs2_files"MCL2_peaks.narrowPeak "$path_to_macs2_files"MCL3_peaks.narrowPeak "$path_to_macs2_files"MCL4_peaks.narrowPeak "$path_to_macs2_files"MCL5_peaks.narrowPeak \
@@ -61,8 +59,9 @@ for i in ${germinal[*]};do
 done
 
 
-BEGINCOMMENT
 ### Software versions ###
-#Python 2.7.18 |Anaconda, Inc.| (default, Nov 25 2022, 06:27:37) [GCC 11.2.0] on linux2
-ENDCOMMENT
+# Python 2.7.18
+# macs2 2.2.9.1
+# chipr 1.1.0
+# rose2 1.1.0
 
