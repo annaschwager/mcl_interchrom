@@ -14,7 +14,11 @@ BAMtools (v 2.5.2). The bigWig files with the ChIP-seq signal scaled to 1 millio
 This script uses [MACS2](https://pypi.org/project/MACS2/) to detect narrowPeaks from the aligned data for the H3K27Ac histone mark followed by ChIP-R ([rhysnewell/ChIP-R](https://github.com/rhysnewell/ChIP-R)) to detect the consensus peaksets.
 The consensus peaks are fed to the rank ordering of super-enhancers (ROSE) algortihm ([stjude/ROSE/](https://github.com/stjude/ROSE/tree/master)) for super-enahcer detection. \
 Used for: Figure 1 d, e. \
-**2. h3k27ac_patients** \
+**2. se_consensus_intersections.R** \
+This script takes the output of the ROSE (*macs2_se.sh*), detects the consensus SEs within each condition and the overlaps between the consensus SEs across conditions. It than associates the SEs to the nearest genes and performs over-representation enrichment analysis on the resulting gene sets. \
+Used for : Figure where SEs, supplementary wth SEs 
+
+**3. h3k27ac_patients** \
 Put here:
 diffenrich, matrices for H3K27aC dif enriched peaks genomewide and per chromosome \
 Used for Figure 1 c \
