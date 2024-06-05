@@ -19,7 +19,7 @@ Used for Figure 1 c \
 Put here or in another script: H3K27ac peaks per chr \
 
 **2. ABC.sh** \
-This script uses the activity-by-contact model of enhancer–promoter regulation (ABC) to detect the enhancers and their regulatory elements based on ATAC-seq, H3K27ac ChIP-seq, RNA-seq and HiC data. The source code of the model is taken from [broadinstitute/ABC-Enhancer-Gene-Prediction](https://github.com/broadinstitute/ABC-Enhancer-Gene-Prediction/tree/master) .
+This script uses the activity-by-contact model of enhancer–promoter regulation (ABC) to detect the enhancers and their regulatory elements based on ATAC-seq, H3K27ac ChIP-seq, RNA-seq and HiC data. The source code of the model is taken from [broadinstitute/ABC-Enhancer-Gene-Prediction](https://github.com/broadinstitute/ABC-Enhancer-Gene-Prediction/tree/master) . \
 
 **3. macs2_se.sh** \
 This script uses [MACS2](https://pypi.org/project/MACS2/) to detect narrowPeaks from the aligned data for the H3K27Ac histone mark followed by ChIP-R ([rhysnewell/ChIP-R](https://github.com/rhysnewell/ChIP-R)) to detect the consensus peaksets.
