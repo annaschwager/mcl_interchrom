@@ -10,16 +10,25 @@ to the GRCh38 blacklist regions and reads mapping for different chromosomes usin
 BAMtools (v 2.5.2). The bigWig files with the ChIP-seq signal scaled to 1 million mapped reads were generated using BEDtools (v 2.30.0) and UCSC BedGraphToBigWig (v 377).
 
 ### Scripts in this folder
-**1. macs2_se.sh** \
-This script uses [MACS2](https://pypi.org/project/MACS2/) to detect narrowPeaks from the aligned data for the H3K27Ac histone mark followed by ChIP-R ([rhysnewell/ChIP-R](https://github.com/rhysnewell/ChIP-R)) to detect the consensus peaksets.
-The consensus peaks are fed to the rank ordering of super-enhancers (ROSE) algortihm ([stjude/ROSE/](https://github.com/stjude/ROSE/tree/master)) for super-enahcer detection. \
-Used for: Figure 1 d, e. \
-**2. se_consensus_intersections.R** \
-This script takes the output of the ROSE (*macs2_se.sh*), detects the consensus SEs within each condition and the overlaps between the consensus SEs across conditions. It than associates the SEs to the nearest genes and performs over-representation enrichment analysis on the resulting gene sets. \
-Used for : Figure where SEs, supplementary wth SEs 
 
-**3. h3k27ac_patients** \
+**1. diffenrich_h3k27ac.R** \
+describe where the macs2 peaks are from 
 Put here:
 diffenrich, matrices for H3K27aC dif enriched peaks genomewide and per chromosome \
 Used for Figure 1 c \
-Put here or in another script: H3K27ac peaks per chr
+Put here or in another script: H3K27ac peaks per chr \
+
+**2. ABC.sh** \
+This script uses the activity-by-contact model of enhancer–promoter regulation (ABC) to detect the enhancers and their regulatory elements based on ATAC-seq, H3K27ac ChIP-seq, RNA-seq and HiC data. The source code of the model is taken from [broadinstitute/ABC-Enhancer-Gene-Prediction](https://github.com/broadinstitute/ABC-Enhancer-Gene-Prediction/tree/master) .
+
+**3. macs2_se.sh** \
+This script uses [MACS2](https://pypi.org/project/MACS2/) to detect narrowPeaks from the aligned data for the H3K27Ac histone mark followed by ChIP-R ([rhysnewell/ChIP-R](https://github.com/rhysnewell/ChIP-R)) to detect the consensus peaksets.
+The consensus peaks are fed to the rank ordering of super-enhancers (ROSE) algortihm ([stjude/ROSE/](https://github.com/stjude/ROSE/tree/master)) for super-enahcer detection. \
+Used for: Figure 1 d, e. \
+
+**4. se_consensus_intersections.R** \
+This script takes the output of the ROSE (*macs2_se.sh*), detects the consensus SEs within each condition and the overlaps between the consensus SEs across conditions. It than associates the SEs to the nearest genes and performs over-representation enrichment analysis on the resulting gene sets. \
+Used for : Figure where SEs, supplementary wth SEs
+
+
+
