@@ -12,14 +12,14 @@ BAMtools (v 2.5.2). The bigWig files with the ChIP-seq signal scaled to 1 millio
 ### Scripts in this folder
 
 **1. diffenrich_h3k27ac.R** \
-This script takes the H3K27ac peaks identified by [MACS2](https://pypi.org/project/MACS2/) and identifies the sites differentially enriched for H3K27ac across control and MCL samples. 
+This script takes the H3K27ac peaks identified by [MACS2](https://pypi.org/project/MACS2/) and identifies the sites differentially enriched for H3K27ac across control and MCL samples using diffbind (insert ref). 
 Put here:
 diffenrich, matrices for H3K27aC dif enriched peaks genomewide and per chromosome \
 Used for Figure 1 c \
 Put here or in another script: H3K27ac peaks per chr 
 
 **2. ABC.sh** \
-This script uses the activity-by-contact model of enhancer–promoter regulation (ABC) to detect the enhancers and their regulatory elements based on ATAC-seq, H3K27ac ChIP-seq, RNA-seq and HiC data. The source code of the model is taken from [broadinstitute/ABC-Enhancer-Gene-Prediction](https://github.com/broadinstitute/ABC-Enhancer-Gene-Prediction/tree/master) . \
+This script uses the activity-by-contact model of enhancer–promoter regulation (ABC) to detect the enhancers and their regulatory elements based on ATAC-seq, H3K27ac ChIP-seq, RNA-seq and HiC data. The source code of the model is taken from [broadinstitute/ABC-Enhancer-Gene-Prediction](https://github.com/broadinstitute/ABC-Enhancer-Gene-Prediction/tree/master). 
 
 **3. se.sh** \
 This script uses [MACS2](https://pypi.org/project/MACS2/) to detect narrowPeaks from the aligned data for the H3K27Ac histone mark followed by ChIP-R ([rhysnewell/ChIP-R](https://github.com/rhysnewell/ChIP-R)) to detect the consensus peaksets.
