@@ -12,7 +12,7 @@ BAMtools (v 2.5.2). The bigWig files with the ChIP-seq signal scaled to 1 millio
 ### Scripts in this folder
 
 **1. diffenrich_h3k27ac.R** \
-describe where the macs2 peaks are from 
+This script takes the H3K27ac peaks identified by [MACS2](https://pypi.org/project/MACS2/) and identifies the sites differentially enriched for H3K27ac across control and MCL samples. 
 Put here:
 diffenrich, matrices for H3K27aC dif enriched peaks genomewide and per chromosome \
 Used for Figure 1 c \
