@@ -24,11 +24,11 @@ This script uses the activity-by-contact model of enhancer–promoter regulation
 **3. se.sh** \
 This script uses [MACS2](https://pypi.org/project/MACS2/) to detect narrowPeaks from the aligned data for the H3K27Ac histone mark followed by ChIP-R ([rhysnewell/ChIP-R](https://github.com/rhysnewell/ChIP-R)) to detect the consensus peaksets.
 The consensus peaks are fed to the rank ordering of super-enhancers (ROSE) algortihm ([stjude/ROSE/](https://github.com/stjude/ROSE/tree/master)) for super-enahcer detection. \
-*Used for:* Figure 1 d, e \
+*Used for:* Figure 1 d, e 
 
 **4. se_consensus_intersections.R** \
 This script takes the output of the ROSE (from *se.sh*), detects the consensus SEs within each condition and the overlaps between the consensus SEs across conditions. It than associates the SEs to the nearest genes and performs over-representation enrichment analysis on the resulting gene sets. \
-*Used for :* Figure where SEs, supplementary with SEs \
+*Used for :* Figure where SEs, supplementary with SEs 
 
 
 
