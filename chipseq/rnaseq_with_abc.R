@@ -76,7 +76,7 @@ volc <- ggplot(data=degs) +
                    aes(x=log2FoldChange, y=-log10(padj)), col="skyblue4") +
         geom_point(data=degs[degs$log2FoldChange > 1 & degs$padj < 0.05, ],
                    aes(x=log2FoldChange, y=-log10(padj)), col="indianred") +
-        geom_point(data=degs[degs$Gene_Name %in% geneIDs$SYMBOL & degs$padj < 0.05 & degs$log2FoldChange > 0,],
+        geom_point(data=degs[degs$Gene_Name %in% geneIDs$SYMBOL & degs$padj < 0.05 & degs$log2FoldChange > 1,],
                    aes(x=log2FoldChange, y=-log10(padj)), col="#8FBA31") +
         theme_minimal() +
         theme(plot.title = element_text(size = rel(1.5), hjust = 0.5)) +
@@ -87,6 +87,8 @@ degs <- degs[order(degs$log2FoldChange,decreasing=TRUE),]
 volc + geom_text_repel(data = head(degs[degs$Gene_Name %in% geneIDs$SYMBOL & degs$padj < 0.001,], 10), 
                 aes(label = Gene_Name, x = log2FoldChange, y = -log10(padj)), box.padding = unit(.7, "lines"), hjust= 0.30)
 
+
+write.csv(degs[degs$Gene_Name %in% geneIDs$SYMBOL & degs$padj < 0.05 & degs$log2FoldChange > 1,], "upregulated_genes_associated_with_upregulated_enhancers.csv")
 
 ##############################################################################
 #> sessionInfo()
