@@ -90,6 +90,11 @@ volc + geom_text_repel(data = head(degs[degs$Gene_Name %in% geneIDs$SYMBOL & deg
 
 write.csv(degs[degs$Gene_Name %in% geneIDs$SYMBOL & degs$padj < 0.05 & degs$log2FoldChange > 1,], "upregulated_genes_associated_with_upregulated_enhancers.csv")
 
+########################## Up enhancers per chromosome ##########################
+barplot(table(abc_up$chr))
+#chr1 chr10 chr11 chr12 chr13 chr14 chr15 chr16 chr17 chr18 chr19  chr2 chr20 chr21 chr22  chr3  chr4  chr5  chr6  chr7  chr8  chr9  chrX 
+#1275   729   676   537   145   800   166   810   880   235   719   945   270    66   335  1137   221   765  1111   767   651   448   276 
+
 ##############################################################################
 #> sessionInfo()
 #R version 4.3.0 (2023-04-21)
