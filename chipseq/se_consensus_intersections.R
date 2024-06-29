@@ -208,6 +208,27 @@ kk <- enrichKEGG(entrez$entrez_id,
 dotplot(kk, showCategory=10) + ggtitle("KEGG enrichment, unique SEs MCL")
 write.csv2(kk, "results/kegg_enrichment_unique_mcl.csv")
 
+############# SEs per chromosome ###############
+table(unique_mcl_annot_df$seqnames)
+
+chromsizes <- read.csv2("./chromSizes.csv", header = TRUE)
+chromsizes$normsizes <- chromsizes$size/min(chromsizes$size)
+chromsizes$normnumber <- chromsizes$gene_number/min(chromsizes$gene_number)
+
+se_per_chr <- as.data.frame(table(unique_mcl_annot_df$seqnames))
+colnames(se_per_chr) <- c("chr", "freq")
+se_per_chr  <- merge(se_per_chr,chromsizes, by.x = "chr", by.y = "chr")
+se_per_chr$normfreq_size <- se_per_chr$freq/se_per_chr$normsizes #norm by size
+se_per_chr$normfreq_number <- se_per_chr$freq/se_per_chr$normnumber #norm by gene number
+write.csv(se_per_chr, "uniqueMCL_SEs_per_chromosome.csv")
+
+se_per_chr <- se_per_chr[order(se_per_chr$freq,decreasing=TRUE),]
+barplot(se_per_chr$freq, names.arg = se_per_chr$chr, ylab = "N MCL unique SEs") 
+se_per_chr <- se_per_chr[order(se_per_chr$normfreq_size,decreasing=TRUE),]
+barplot(se_per_chr$normfreq_size, names.arg = se_per_chr$chr, ylab = "N MCL unique SEs normalised to chromSize patients")
+se_per_chr <- se_per_chr[order(se_per_chr$normfreq_number,decreasing=TRUE),]
+barplot(se_per_chr$normfreq_number, names.arg = se_per_chr$chr, ylab = "N MCL unique SEs normalised to gene number patients")
+
 ###############################################################################
 #> sessionInfo()
 #R version 4.3.0 (2023-04-21)
