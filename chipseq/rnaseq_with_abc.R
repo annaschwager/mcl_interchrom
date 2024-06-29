@@ -91,9 +91,23 @@ volc + geom_text_repel(data = head(degs[degs$Gene_Name %in% geneIDs$SYMBOL & deg
 write.csv(degs[degs$Gene_Name %in% geneIDs$SYMBOL & degs$padj < 0.05 & degs$log2FoldChange > 1,], "upregulated_genes_associated_with_upregulated_enhancers.csv")
 
 ########################## Up enhancers per chromosome ##########################
-barplot(table(abc_up$chr))
-#chr1 chr10 chr11 chr12 chr13 chr14 chr15 chr16 chr17 chr18 chr19  chr2 chr20 chr21 chr22  chr3  chr4  chr5  chr6  chr7  chr8  chr9  chrX 
-#1275   729   676   537   145   800   166   810   880   235   719   945   270    66   335  1137   221   765  1111   767   651   448   276 
+chromsizes <- read.csv2("./chromSizes.csv", header = TRUE)
+chromsizes$normsizes <- chromsizes$size/min(chromsizes$size)
+chromsizes$normnumber <- chromsizes$gene_number/min(chromsizes$gene_number)
+
+enh_per_chr <- as.data.frame(table(abc_up$chr))
+colnames(enh_per_chr) <- c("chr", "freq")
+enh_per_chr  <- merge(enh_per_chr ,chromsizes, by.x = "chr", by.y = "chr")
+enh_per_chr$normfreq_size <- enh_per_chr$freq/enh_per_chr$normsizes #norm by size
+enh_per_chr$normfreq_number <- enh_per_chr$freq/enh_per_chr$normnumber #norm by gene number
+write.csv(enh_per_chr, "up_enhancers_per_chromosome_MCL.csv")
+
+enh_per_chr <- enh_per_chr[order(enh_per_chr$freq,decreasing=TRUE),]
+barplot(enh_per_chr$freq, names.arg = enh_per_chr$chr, ylab = "N up enhancers") #up DEGs raw
+enh_per_chr <- enh_per_chr[order(enh_per_chr$normfreq_size,decreasing=TRUE),]
+barplot(enh_per_chr$normfreq_size, names.arg = enh_per_chr$chr, ylab = "N up enhancers normalised to chromSize patients")
+enh_per_chr <- enh_per_chr[order(enh_per_chr$normfreq_number,decreasing=TRUE),]
+barplot(enh_per_chr$normfreq_number, names.arg = enh_per_chr$chr, ylab = "N up enhancers normalised to gene number patients")
 
 ##############################################################################
 #> sessionInfo()
