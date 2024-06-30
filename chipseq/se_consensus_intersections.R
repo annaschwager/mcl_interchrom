@@ -69,6 +69,11 @@ write_csv(as.data.frame(common_mcl_naive), "results/common_mcl_naive.csv")
 write_csv(as.data.frame(common_mcl_germinal), "results/common_mcl_germinal.csv")
 write_csv(as.data.frame(unique_mcl), "results/unique_mcl.csv")
 
+export.bed(unique_mcl, "results/unique_se_mcl.bed")
+export.bed(common_for_all, "results/common_for_all.bed")
+export.bed(common_mcl_naive, "results/common_mcl_naive.bed")
+export.bed(common_mcl_germinal, "results/common_mcl_germinal.bed")
+
 ########################## Annotating SEs #####################
 ### Annotating SEs ###
 ## preparing annotation files
@@ -249,10 +254,16 @@ barplot(se_per_chr$normfreq_number, names.arg = se_per_chr$chr, ylab = "N MCL un
 #  [1] grid      stats4    stats     graphics  grDevices utils     datasets  methods   base     
 
 #other attached packages:
-#  [1] clusterProfiler_4.8.2     enrichplot_1.20.0         DOSE_3.26.2               readr_2.1.5               org.Hs.eg.db_3.17.0       EnsDb.Hsapiens.v86_2.99.0
-#[7] ensembldb_2.24.1          AnnotationFilter_1.24.0   GenomicFeatures_1.52.2    AnnotationDbi_1.62.2      Biobase_2.60.0            plyr_1.8.9               
-#[13] ChIPpeakAnno_3.34.1       ggvenn_0.1.10             ggplot2_3.5.1             dplyr_1.1.4               biomaRt_2.56.1            GenomicRanges_1.52.1     
-#[19] GenomeInfoDb_1.36.4       IRanges_2.34.1            S4Vectors_0.38.2          BiocGenerics_0.46.0      
+#[1] rtracklayer_1.60.1          stringr_1.5.1               DESeq2_1.40.2              
+#[4] SummarizedExperiment_1.30.2 MatrixGenerics_1.12.3       matrixStats_1.3.0          
+#[7] clusterProfiler_4.8.2       enrichplot_1.20.0           DOSE_3.26.2                
+#[10] org.Hs.eg.db_3.17.0         EnsDb.Hsapiens.v86_2.99.0   ensembldb_2.24.1           
+#[13] AnnotationFilter_1.24.0     GenomicFeatures_1.52.2      AnnotationDbi_1.62.2       
+#[16] Biobase_2.60.0              plyr_1.8.9                  ChIPpeakAnno_3.34.1        
+#[19] ggrepel_0.9.5               ggvenn_0.1.10               ggplot2_3.5.1              
+#[22] dplyr_1.1.4                 biomaRt_2.56.1              GenomicRanges_1.52.1       
+#[25] GenomeInfoDb_1.36.4         IRanges_2.34.1              S4Vectors_0.38.2           
+#[28] BiocGenerics_0.46.0          
 
 #loaded via a namespace (and not attached):
 #  [1] splines_4.3.0               BiocIO_1.10.0               bitops_1.0-7                ggplotify_0.1.2             filelock_1.0.3              tibble_3.2.1               
