@@ -413,6 +413,19 @@ barplot(df_GRANTA_001_up$normfreq_size, names.arg = df_GRANTA_001_up$chr, ylab =
 df_GRANTA_001_up <- df_GRANTA_001_up[order(df_GRANTA_001_up$normfreq_number,decreasing=TRUE),]
 barplot(df_GRANTA_001_up$normfreq_number, names.arg = df_GRANTA_001_up$chr, ylab = "N up DEGs normalised to gene number granta")
 
+########################## Volcano plot with chr19 ##########################
+
+volc <- ggplot(data=all.genes.ens.MCL@elementMetadata) +
+  geom_point(aes(x=log2FoldChange, y=-log10(padj)), col="grey") +
+  geom_point(data=all.genes.ens.MCL@elementMetadata[all.genes.ens.MCL@elementMetadata$log2FoldChange < -1 & all.genes.ens.MCL@elementMetadata$padj < 0.05, ],
+             aes(x=log2FoldChange, y=-log10(padj)), col="skyblue4") +
+  geom_point(data=all.genes.ens.MCL@elementMetadata[all.genes.ens.MCL@elementMetadata$log2FoldChange > 1 & all.genes.ens.MCL@elementMetadata$padj < 0.05, ],
+             aes(x=log2FoldChange, y=-log10(padj)), col="indianred") +
+  geom_point(data=all.genes.ens.MCL@elementMetadata[all.genes.ens.MCL@seqnames == "chr19" & all.genes.ens.MCL@elementMetadata$log2FoldChange > 1, ],
+             aes(x=log2FoldChange, y=-log10(padj)), col="#B38EC1") +
+  theme(plot.title = element_text(size = rel(1.5), hjust = 0.5)) +
+  ggtitle("MCL patients vs control naive B cells")
+
 ############## GO enrichment on chromosomes ########################
 all.genes.ens.MCL.19 <- all.genes.ens.MCL[all.genes.ens.MCL@seqnames == "chr19", ]
 all.genes.ens.MCL.19$Gene_Name
