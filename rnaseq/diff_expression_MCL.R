@@ -352,8 +352,15 @@ kpPoints(kp, data = all.genes.ens.GRANTA, y=all.genes.ens.GRANTA$log2FoldChange,
 kpPoints(kp, data = all.genes.ens.GRANTA001, y=all.genes.ens.GRANTA001$log2FoldChange,
          ymax = 15, ymin = -15, col=col001)
 
-par(mfrow = c(1, 1))
-
+kp <- plotKaryotype(genome="hg38", chromosomes = c("chr19"), plot.type = 2)
+max(all.genes.ens.GRANTA001$log2FoldChange)
+min(all.genes.ens.GRANTA001$log2FoldChange)
+kpAxis(kp, ymax = 10, ymin = -10, )
+kpAddLabels(kp, labels = "log2FC", srt=90, pos = 1, label.margin = 0.07, cex=0.9)
+kpAddLabels(kp, labels="GRANTA vs B naive", r1=0.1, r0=0, data.panel = 1, side = "right", cex=0.9)
+kp <- kpPlotDensity(kp, all.genes.ens, data.panel = 2)
+kpPoints(kp, data = all.genes.ens.GRANTA001, y=all.genes.ens.GRANTA001$log2FoldChange,
+         ymax = 10, ymin = -10, col=col001)
 
 ############## Barplots DEGs per chromosome ########################
 ### DEGs per chromosome, MCL
@@ -412,19 +419,6 @@ df_GRANTA_001_up <- df_GRANTA_001_up[order(df_GRANTA_001_up$normfreq_size,decrea
 barplot(df_GRANTA_001_up$normfreq_size, names.arg = df_GRANTA_001_up$chr, ylab = "N up DEGs normalised to chromSize granta")
 df_GRANTA_001_up <- df_GRANTA_001_up[order(df_GRANTA_001_up$normfreq_number,decreasing=TRUE),]
 barplot(df_GRANTA_001_up$normfreq_number, names.arg = df_GRANTA_001_up$chr, ylab = "N up DEGs normalised to gene number granta")
-
-########################## Volcano plot with chr19 ##########################
-
-volc <- ggplot(data=all.genes.ens.MCL@elementMetadata) +
-  geom_point(aes(x=log2FoldChange, y=-log10(padj)), col="grey") +
-  geom_point(data=all.genes.ens.MCL@elementMetadata[all.genes.ens.MCL@elementMetadata$log2FoldChange < -1 & all.genes.ens.MCL@elementMetadata$padj < 0.05, ],
-             aes(x=log2FoldChange, y=-log10(padj)), col="skyblue4") +
-  geom_point(data=all.genes.ens.MCL@elementMetadata[all.genes.ens.MCL@elementMetadata$log2FoldChange > 1 & all.genes.ens.MCL@elementMetadata$padj < 0.05, ],
-             aes(x=log2FoldChange, y=-log10(padj)), col="indianred") +
-  geom_point(data=all.genes.ens.MCL@elementMetadata[all.genes.ens.MCL@seqnames == "chr19" & all.genes.ens.MCL@elementMetadata$log2FoldChange > 1, ],
-             aes(x=log2FoldChange, y=-log10(padj)), col="#B38EC1") +
-  theme(plot.title = element_text(size = rel(1.5), hjust = 0.5)) +
-  ggtitle("MCL patients vs control naive B cells")
 
 ############## GO enrichment on chromosomes ########################
 all.genes.ens.MCL.19 <- all.genes.ens.MCL[all.genes.ens.MCL@seqnames == "chr19", ]
