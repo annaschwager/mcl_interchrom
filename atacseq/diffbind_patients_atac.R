@@ -57,6 +57,8 @@ export.bed(dba.report(dbObj_cont, contrast=1)[dba.report(dbObj_cont, contrast=1)
 
 down_mcl <- dba.report(dbObj_cont, contrast=1)[dba.report(dbObj_cont, contrast=1)$Fold > 0, ]
 up_mcl <- dba.report(dbObj_cont, contrast=1)[dba.report(dbObj_cont, contrast=1)$Fold < 0, ]
+saveRDS(down_mcl, "down_mcl_granges.RDS")
+saveRDS(up_mcl, "up_mcl_granges.RDS")
 
 export.bed(up_mcl[up_mcl@seqnames@values == "chr11", ], con="results/atac_up_mcl_patiens_chr11.bed" )
 export.bed(up_mcl[up_mcl@seqnames@values == "chr14", ], con="results/atac_up_mcl_patiens_chr14.bed" )
