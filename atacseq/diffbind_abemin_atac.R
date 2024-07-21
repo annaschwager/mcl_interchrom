@@ -74,6 +74,12 @@ write.csv2(dba.report(dbObj_cont,  contrast=3), "./results/diffbind_grantaabe_gr
 write.csv2(dba.report(dbObj_cont,  contrast=4), "./results/diffbind_blasabe_blas.csv")
 write.csv2(dba.report(dbObj_cont,  contrast=5), "./results/diffbind_blasmin_blas.csv")
 
+# volcano plots
+dba.plotVolcano(dbObj_cont,  contrast=2)
+dba.plotVolcano(dbObj_cont,  contrast=5)
+dba.plotVolcano(dbObj_cont,  contrast=3)
+dba.plotVolcano(dbObj_cont,  contrast=4)
+
 ######### Creating bed files with differentially accessible regions #############
 up_min_granta <- dba.report(dbObj_cont, contrast=2)[dba.report(dbObj_cont, contrast=2)$Fold > 0, ]
 down_min_granta <- dba.report(dbObj_cont, contrast=2)[dba.report(dbObj_cont, contrast=2)$Fold < 0, ]
@@ -247,7 +253,7 @@ compGO1 <- compareCluster(geneCluster   = genes1,
                          pAdjustMethod = "BH",
                          OrgDb='org.Hs.eg.db',
                          universe = universe)
-write.csv2(compGO, "./results/go_enrichment_MF_diffatacpeaks_minnelide_in_granta.csv")
+write.csv2(compGO1, "./results/go_enrichment_MF_diffatacpeaks_minnelide_in_granta.csv")
 dotplot(compGO1, showCategory = 10, title = "GO Enrichment Analysis MF GRANTA+Min vs GRANTA")
 
 groupGObp1 <- compareCluster(geneCluster   = genes1,
