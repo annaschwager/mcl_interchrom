@@ -80,6 +80,37 @@ dba.plotVolcano(dbObj_cont,  contrast=5)
 dba.plotVolcano(dbObj_cont,  contrast=3)
 dba.plotVolcano(dbObj_cont,  contrast=4)
 
+grantamin_granta <- dba.report(dbObj_cont,  contrast=2, th = 0.5)
+df <- as.data.frame(grantamin_granta@elementMetadata)
+df$log2Fold <- log2(abs(df$Fold))
+df[df$Fold < 0, ]$log2Fold <- -(df[df$Fold < 0, ]$log2Fold)
+
+volc <- ggplot(data=df) +
+  geom_point(aes(x=log2Fold, y=-log10(FDR)), col="grey")+
+  geom_point(data=df[df$log2Fold < -0.5 & df$FDR < 0.05, ],
+             aes(x=log2Fold, y=-log10(FDR)), col="skyblue4") +
+    geom_point(data=df[df$log2Fold > 0.5 & df$FDR < 0.05, ],
+               aes(x=log2Fold, y=-log10(FDR)), col="indianred") +
+  theme_minimal() +
+  theme(plot.title = element_text(size = rel(1.5), hjust = 0.5)) +
+  ggtitle("GRANTA + Min vs GRANTA")
+
+
+grantaabe_granta <- dba.report(dbObj_cont,  contrast=3, th = 0.5)
+df <- as.data.frame(grantaabe_granta@elementMetadata)
+df$log2Fold <- log2(abs(df$Fold))
+df[df$Fold < 0, ]$log2Fold <- -(df[df$Fold < 0, ]$log2Fold)
+
+volc2 <- ggplot(data=df) +
+  geom_point(aes(x=log2Fold, y=-log10(FDR)), col="grey")+
+  geom_point(data=df[df$log2Fold < -0 & df$FDR < 0.05, ],
+             aes(x=log2Fold, y=-log10(FDR)), col="skyblue4") +
+  geom_point(data=df[df$log2Fold > 0 & df$FDR < 0.05, ],
+             aes(x=log2Fold, y=-log10(FDR)), col="indianred") +
+  theme_minimal() +
+  theme(plot.title = element_text(size = rel(1.5), hjust = 0.5)) +
+  ggtitle("GRANTA + Abe vs GRANTA")
+
 ######### Creating bed files with differentially accessible regions #############
 up_min_granta <- dba.report(dbObj_cont, contrast=2)[dba.report(dbObj_cont, contrast=2)$Fold > 0, ]
 down_min_granta <- dba.report(dbObj_cont, contrast=2)[dba.report(dbObj_cont, contrast=2)$Fold < 0, ]
@@ -157,6 +188,27 @@ mcl_down_profile <- BamBigwig_to_chipProfile(bigWigs,
                                            distanceAround = 2000)
 mcl_down_profile <- as_profileplyr(mcl_down_profile)
 generateEnrichedHeatmap(mcl_down_profile, matrices_color = c("white", "cornflowerblue"))
+
+### Adding H3K27Ac data for GRANTA
+bigWigs_h3 <- list.files("./bigwig/mergedReplicate/h3k27ac/", full.names = TRUE)
+
+granta_up_profile_h3 <- BamBigwig_to_chipProfile(bigWigs_h3,
+                                              testRanges = "./results/up_granta.bed",
+                                              style = "point",
+                                              format = "bigwig",
+                                              distanceAround = 2000)
+
+granta_up_profile_h3 <- as_profileplyr(granta_up_profile_h3)
+generateEnrichedHeatmap(granta_up_profile_h3, matrices_color = c("white", "#8FBA31"))
+
+granta_down_profile_h3 <- BamBigwig_to_chipProfile(bigWigs_h3,
+                                                 testRanges = "./results/down_granta.bed",
+                                                 style = "point",
+                                                 format = "bigwig",
+                                                 distanceAround = 2000)
+
+granta_down_profile_h3 <- as_profileplyr(granta_down_profile_h3)
+generateEnrichedHeatmap(granta_down_profile_h3, matrices_color = c("white", "cornflowerblue"))
 
 ############################### Venn diagrams #################################
 dba.show(dbObj_cont, bContrasts = TRUE)
