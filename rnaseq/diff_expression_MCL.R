@@ -290,6 +290,8 @@ head(all.genes.ens.MCL)
 all.genes.ens.MCL <- all.genes.ens.MCL[all.genes.ens.MCL$padj < 0.05]
 head(all.genes.ens.MCL)
 write.csv(all.genes.ens.MCL, "MCL_vs_c_DAG.csv")
+saveRDS(all.genes.ens.MCL, "all.genes.ens.MCL.RDS")
+
 
 col.over <- "indianred" 
 col.under <- "cornflowerblue" 
@@ -309,6 +311,7 @@ head(all.genes.ens.GRANTA)
 all.genes.ens.GRANTA <- all.genes.ens.GRANTA[all.genes.ens.GRANTA$padj < 0.05]
 all.genes.ens.GRANTA001 <- all.genes.ens.GRANTA[all.genes.ens.GRANTA$padj < 0.01]
 head(all.genes.ens.GRANTA)
+saveRDS(all.genes.ens.GRANTA, "all.genes.ens.GRANTA.RDS")
 
 col.over <- "indianred" 
 col.under <- "cornflowerblue" 
