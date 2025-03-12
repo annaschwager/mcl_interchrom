@@ -1,6 +1,6 @@
 ## RNA-seq analysis 
-This folder contains the scripts used for the downstream analysis and visualisation of the RNA-seq data from the article X. \
-The raw sequencing data was generated in the CNRS UMR9018 and deposited to XXX or downloaded from [EGA](https://ega-archive.org/) (EGAD00001002315, EGAD00001002336, EGAD00001002452).
+This folder contains the scripts used for the downstream analysis and visualisation of the RNA-seq data from the **article X**. \
+The raw sequencing data was generated in the CNRS UMR9018 and deposited to [GEO](https://www.ncbi.nlm.nih.gov/geo/)(GSE291376) or [EGA](https://ega-archive.org/)(**TBD**), or downloaded from [EGA](https://ega-archive.org/) (EGAD00001002315, EGAD00001002336, EGAD00001002452).
 
 ### File pre-processing
 Raw sequencing data was processed using the [nf-core/rnaseq pipeline (v3.10.1)](https://nf-co.re/rnaseq/3.10.1) with default parameters unless stated otherwise. Briefly, the files were trimmed from the sequencing adapters using TrimGalore (v 0.6.7) and aligned to the reference human genome (GRCh38) using STAR (v 2.6.1d). The reads mapping to different genomic features were then quantified by Salmon (v 1.9.0).
