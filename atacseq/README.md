@@ -16,4 +16,4 @@ This script takes the bam files and the ATAC peaks detected by [MACS2](https://p
 **2. diffbind_abemin_atac.R** \
 This script takes the bam files and the ATAC peaks detected by [MACS2](https://pypi.org/project/MACS2/) in MCL (GRANTA) and control lymphoblastoid (BLAS) cell lines treated or not with Minnelide (50 nM, 3days) or Abemaciclib (500nM, 7 days) and identifies the differentially acessible sites between these conditions using [Diffbind](https://bioconductor.org/packages/release/bioc/html/DiffBind.html). It than performs the functional annotation of the differentially accessible sites, compares these sites between conditions, and plots the distributions of these sites per chromosome. 
 
-*Used for:* Figure 6 
+*Used for:* Figure 5 a-h
