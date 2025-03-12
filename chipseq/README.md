@@ -1,6 +1,6 @@
 ## ChIP-seq analysis 
 This folder contains the scripts used for the downstream analysis and visualisation of the ChIP-seq data from the **article X**. \
-The raw sequencing data was generated in the CNRS UMR9018 and deposited to XXX or downloaded from [EGA](https://ega-archive.org/) (EGAD00001001502, EGAD00001001519, EGAD00001002397).
+The raw sequencing data was generated in the CNRS UMR9018 and deposited to [GEO](https://www.ncbi.nlm.nih.gov/geo/) (GSE291373) or downloaded from [EGA](https://ega-archive.org/) (EGAD00001001502, EGAD00001001519, EGAD00001002397).
 
 ### File pre-processing
 Raw sequencing data was processed using the [nf-core/chipseq](https://nf-co.re/chipseq/2.0.0) pipeline (v2.0.0) with default parameters unless mentioned otherwise. 
@@ -14,7 +14,7 @@ BAMtools (v 2.5.2). The bigWig files with the ChIP-seq signal scaled to 1 millio
 **1. diffbind_patients_h3k27ac.R** \
 This script takes the bam files and the H3K27ac peaks detected by [MACS2](https://pypi.org/project/MACS2/) and identifies the sites differentially enriched for H3K27ac across control and MCL samples using [Diffbind](https://bioconductor.org/packages/release/bioc/html/DiffBind.html). It than performs the annotation and functional enrichment on the differential peaks and plots the numbers of up peaks per chromosome (raw or normalised to chromosome size /gene number on the chromosome) in different conditions.
 
-*Used for:* Figure 2 a b c, Figure 3 c d, Supplementary figure 2
+*Used for:* Figure 2 a b c, Figure 3 f g, Supplementary figure 2
 
 **2. ABC.sh** \
 This script uses the activity-by-contact model of enhancer–promoter regulation (ABC) to detect the enhancers and their regulatory elements based on ATAC-seq, H3K27ac ChIP-seq, RNA-seq and HiC data. The source code of the model is taken from [broadinstitute/ABC-Enhancer-Gene-Prediction](https://github.com/broadinstitute/ABC-Enhancer-Gene-Prediction/tree/master). 
