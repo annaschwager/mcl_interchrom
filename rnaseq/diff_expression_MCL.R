@@ -25,6 +25,14 @@ library(Cairo)
 library(rtracklayer)
 library(clusterProfiler)
 library(tidyverse)
+library(fgsea)
+library(msigdbr)
+library(dplyr)
+library(ggpubr)
+library(GenomicRanges)
+library(AnnotationDbi)
+library(scales)
+library(zoo)
 library(TxDb.Hsapiens.UCSC.hg38.knownGene)
 txdb <- TxDb.Hsapiens.UCSC.hg38.knownGene
 
@@ -486,6 +494,652 @@ n <- as.data.frame(normalized_counts_naive)
 n$average <- rowMeans(n)
 naive_average <- data.frame(row.names(n), n$average)
 write.csv2(naive_average, "results/naive_norm_counts_averagevalues.csv")
+
+
+################ Positional enrichment GSEA ####################################
+### Helper functions
+add_symbol_to_gr <- function(gr, ensg_from = c("names", "mcols"), ensg_col = NULL) {
+  ensg_from <- match.arg(ensg_from)
+  
+  if (ensg_from == "names") {
+    ensg <- names(gr)
+  } else {
+    if (is.null(ensg_col)) stop("Provide ensg_col when ensg_from='mcols'")
+    ensg <- as.character(mcols(gr)[[ensg_col]])
+  }
+  
+  if (is.null(ensg) || all(is.na(ensg)) || all(ensg == "")) {
+    stop("ENSG IDs not found in GRanges names() or specified mcols column.")
+  }
+  
+  ensg_clean <- sub("\\..*$", "", ensg)
+  
+  sym <- AnnotationDbi::mapIds(
+    org.Hs.eg.db,
+    keys = ensg_clean,
+    keytype = "ENSEMBL",
+    column = "SYMBOL",
+    multiVals = "first"
+  )
+  
+  mcols(gr)$SYMBOL <- unname(sym)
+  gr
+}
+
+make_chr_pathways_from_gr_symbols <- function(gr,
+                                              symbol_col = "SYMBOL",
+                                              keep_chr = c(as.character(1:22), "X", "Y"),
+                                              prefix = "CHR") {
+  
+  symbols <- as.character(mcols(gr)[[symbol_col]])
+  chrs <- as.character(seqnames(gr))
+  chrs <- gsub("^chr", "", chrs, ignore.case = TRUE)
+  
+  ok <- !is.na(symbols) & symbols != "" & chrs %in% keep_chr
+  symbols <- symbols[ok]
+  chrs <- chrs[ok]
+  
+  pathways <- split(unique(symbols), paste0(prefix, chrs))
+  
+  ## order CHR1..CHR22,X,Y
+  ord <- order(match(names(pathways), paste0(prefix, keep_chr)))
+  pathways[ord]
+}
+
+
+make_ranks_from_deseq <- function(res, stat_col = "stat") {
+  df <- as.data.frame(res)
+  genes <- rownames(df)
+  
+  ok <- !is.na(genes) & genes != "" & !is.na(df[[stat_col]]) & is.finite(df[[stat_col]])
+  df <- df[ok, , drop = FALSE]
+  genes <- genes[ok]
+  
+  ## de-duplicate symbols if needed
+  df$gene <- genes
+  df <- df[order(abs(df[[stat_col]]), decreasing = TRUE), ]
+  df <- df[!duplicated(df$gene), ]
+  
+  ranks <- df[[stat_col]]
+  names(ranks) <- df$gene
+  sort(ranks, decreasing = TRUE)
+}
+
+run_fgsea_minimal <- function(pathways, ranks, out_csv = NULL,
+                              minSize = 10, maxSize = 50000,
+                              collapse_leadingEdge = TRUE) {
+  
+  fg <- fgsea(pathways = pathways, stats = ranks,
+              minSize = minSize, maxSize = maxSize)
+  
+  fg <- as.data.frame(fg)
+  fg <- fg[order(fg$padj, -abs(fg$NES)), ]
+  
+  if (!is.null(out_csv)) {
+    fg_out <- fg
+    if ("leadingEdge" %in% colnames(fg_out)) {
+      if (collapse_leadingEdge) {
+        fg_out$leadingEdge <- vapply(fg_out$leadingEdge,
+                                     function(x) paste(x, collapse = ";"),
+                                     FUN.VALUE = character(1))
+      } else {
+        fg_out$leadingEdge <- NULL
+      }
+    }
+    write.csv(fg_out, out_csv, row.names = FALSE)
+  }
+  
+  fg
+}
+
+plot_chr_bar <- function(fg_df,
+                         main = "Chromosome enrichment (GSEA)",
+                         ylab = "NES") {
+  
+  df <- fg_df
+  df <- df[!is.na(df$NES) & !is.na(df$padj), ]
+  df$pathway_clean <- tolower(df$pathway)
+  df$log10padj <- -log10(df$padj)
+  
+  
+  df$pathway_clean <- factor(
+    df$pathway_clean,
+    levels = df$pathway_clean[order(df$NES)]
+  )
+  
+  ggplot(df, aes(x = pathway_clean, y = NES, fill = log10padj)) +
+    geom_col() +
+    coord_flip() +
+    scale_fill_gradient(
+      low = "grey90",
+      high = "red3",
+      name = "-log10(padj)"
+    ) +
+    geom_hline(yintercept = 0, linetype = "dashed") +
+    labs(title = main, x = "Chromosome", y = ylab) +
+    theme_classic() +
+    theme(
+      axis.text.y = element_text(color = "black"),
+      axis.title.y = element_text(color = "black"),
+      plot.title = element_text(hjust = 0.5)
+    )
+}
+
+### Rank genes and add annotation
+## MCL all
+ranks_MCL <- make_ranks_from_deseq(resMCL_naive_blood, stat_col = "stat")
+gr_sym_MCL <- add_symbol_to_gr(all.genes.ens.MCL, ensg_from = "names")
+
+## GRANTA
+ranks_GRANTA <- make_ranks_from_deseq(resGRANTA_naive_blood, stat_col = "stat")
+gr_sym_GRANTA <- add_symbol_to_gr(all.genes.ens.GRANTA, ensg_from = "names")
+
+### Prepare chromosome sets 
+chr_sets_sym_MCL <- make_chr_pathways_from_gr_symbols(gr_sym_MCL, symbol_col = "SYMBOL")
+chr_sets_sym_MCL <- lapply(chr_sets_sym_MCL, function(gs) intersect(gs, names(ranks_MCL)))
+
+chr_sets_sym_GRANTA <- make_chr_pathways_from_gr_symbols(gr_sym_GRANTA, symbol_col = "SYMBOL")
+chr_sets_sym_GRANTA <- lapply(chr_sets_sym_GRANTA, function(gs) intersect(gs, names(ranks_GRANTA)))
+
+
+### Run GSEA
+fg_chr_genomewide_MCL <- run_fgsea_minimal(
+  pathways = chr_sets_sym_MCL,
+  ranks    = ranks_MCL,
+  out_csv  = "results/chrGSEA_genomewide_MCL_vs_naive_blood.csv",
+  minSize  = 10,
+  maxSize  = 50000
+)
+
+fg_chr_genomewide_GRANTA <- run_fgsea_minimal(
+  pathways = chr_sets_sym_GRANTA,
+  ranks    = ranks_GRANTA,
+  out_csv  = "results/chrGSEA_genomewide_GRANTA_vs_naive_blood.csv",
+  minSize  = 10,
+  maxSize  = 50000
+)
+
+
+plot_chr_bar(
+  fg_chr_genomewide_MCL,
+  main = "Chromosome enrichment (GSEA) - MCL vs naive_blood"
+)
+
+plot_chr_bar(
+  fg_chr_genomewide_GRANTA,
+  main = "Chromosome enrichment (GSEA) - GRANTA vs naive_blood"
+)
+
+plotEnrichment(chr_sets_sym[["CHR19"]], ranks_MCL)
+plotEnrichment(chr_sets_sym[["CHR19"]], ranks_GRANTA)
+
+########################## Tables with chr19 up genes ##########################
+save_chr19_up_table <- function(res,
+                                gr_sym,
+                                out_csv = out_csv
+                                lfc_col = "log2FoldChange",
+                                padj_col = "padj",
+                                chr_focus = "chr19",
+                                lfc_min = 0,
+                                padj_max = 0.05) {
+  
+  df <- as.data.frame(res)
+  df$symbol <- rownames(df)
+  
+  ## filter upregulated + significant
+  keep <- !is.na(df[[lfc_col]]) & is.finite(df[[lfc_col]]) &
+    !is.na(df[[padj_col]]) & is.finite(df[[padj_col]]) &
+    df[[lfc_col]] > lfc_min & df[[padj_col]] < padj_max
+  
+  df_up <- df[keep, c("symbol", lfc_col, padj_col), drop = FALSE]
+  colnames(df_up) <- c("symbol", "log2FoldChange", "padj")
+  
+  gr19 <- gr_sym[as.character(seqnames(gr_sym)) %in% c(chr_focus, sub("^chr", "", chr_focus))]
+  gr19$chr <- paste0("chr", sub("^chr", "", as.character(seqnames(gr19))))  ## normalize to chr*
+  
+  coords <- data.frame(
+    symbol = as.character(mcols(gr19)$SYMBOL),
+    chr    = gr19$chr,
+    start  = start(gr19),
+    end    = end(gr19),
+    strand = as.character(strand(gr19)),
+    stringsAsFactors = FALSE
+  )
+  
+  ## If multiple ranges per symbol, keep the widest 
+  coords$width <- coords$end - coords$start + 1L
+  coords <- coords[order(coords$symbol, -coords$width), ]
+  coords <- coords[!duplicated(coords$symbol), ]
+  coords$width <- NULL
+  
+  out <- merge(df_up, coords, by = "symbol", all.x = TRUE)
+  out <- out[!is.na(out$chr) & out$chr == "chr19", ]
+  
+  out <- out[order(out$padj, -out$log2FoldChange), ]
+  
+  write.csv(out, out_csv, row.names = FALSE)
+  out
+}
+
+
+chr19_up_tbl_MCL <- save_chr19_up_table(
+  res    = resMCL_naive_blood,
+  gr_sym = gr_sym,
+  out_csv = "results/chr19_up_genes_MCL_vs_naive_blood_coordinates.csv",
+  lfc_min = 0.5,
+  padj_max = 0.05
+)
+
+chr19_up_tbl_GRANTA <- save_chr19_up_table(
+  res    = resGRANTA_naive_blood,
+  gr_sym = gr_sym,
+  out_csv = "results/chr19_up_genes_GRANTA_vs_naive_blood_coordinates.csv",
+  lfc_min = 0.5,
+  padj_max = 0.05
+)
+
+set_MCL <- unique(chr19_up_tbl_MCL$symbol)
+set_GRANTA <- unique(chr19_up_tbl_GRANTA$symbol)
+
+venn_list <- list(
+  MCL = set_MCL,
+  GRANTA = set_GRANTA
+)
+
+p_venn_up_chr19 <- ggvenn(
+  venn_list,
+  fill_color = c("#993333", "#4DBBD5FF"),
+  stroke_size = 0.8,
+  set_name_size = 5,
+  text_size = 5
+)
+
+
+################### Expression along chr19 #####################################
+cts <- as.matrix(counts)
+mcl_cols    <- grep("^MCL_", colnames(cts), value = TRUE)
+ctrl_cols   <- grep("^naive_blood", colnames(cts), value = TRUE)
+granta_cols <- grep("^GRANTA", colnames(cts), value = TRUE)
+
+### size-factor normalization using Control + MCL + GRANTA
+use_cols <- c(mcl_cols, ctrl_cols, granta_cols)
+
+coldata <- data.frame(
+  sample = use_cols,
+  group  = dplyr::case_when(
+    use_cols %in% mcl_cols    ~ "MCL",
+    use_cols %in% ctrl_cols   ~ "Control",
+    use_cols %in% granta_cols ~ "GRANTA"
+  ),
+  row.names = use_cols
+)
+
+dds <- DESeqDataSetFromMatrix(
+  countData = cts[, use_cols, drop = FALSE],
+  colData   = coldata,
+  design    = ~ 1
+)
+
+dds <- estimateSizeFactors(dds)
+norm <- counts(dds, normalized = TRUE)  
+
+mcl_mean_expr    <- rowMeans(norm[, mcl_cols,    drop = FALSE], na.rm = TRUE)
+ctrl_mean_expr   <- rowMeans(norm[, ctrl_cols,   drop = FALSE], na.rm = TRUE)
+granta_mean_expr <- rowMeans(norm[, granta_cols, drop = FALSE], na.rm = TRUE)
+
+### keep only chr19 genes
+gr <- all.genes.ens.MCL_all  
+gene_id_col <- if ("gene_id" %in% names(mcols(gr))) "gene_id" else
+  if ("Gene_Name" %in% names(mcols(gr))) "Gene_Name" 
+
+gene_id <- mcols(gr)[[gene_id_col]]
+
+keep <- as.character(seqnames(gr)) == "chr19" & gene_id %in% rownames(cts)
+gr19 <- gr[keep]
+gene_id19 <- gene_id[keep]
+
+df19 <- data.frame(
+  gene_id      = gene_id19,
+  pos          = start(gr19) + width(gr19) %/% 2,
+  expr_MCL     = mcl_mean_expr[gene_id19],
+  expr_Control = ctrl_mean_expr[gene_id19],
+  expr_GRANTA  = granta_mean_expr[gene_id19],
+  log2FC       = mcols(gr19)$log2FoldChange,
+  stringsAsFactors = FALSE
+) %>%
+  distinct(gene_id, .keep_all = TRUE) %>%
+  arrange(pos)
+
+### smoothing
+k <- 101  
+
+df19 <- df19 %>%
+  mutate(
+    expr_MCL_s     = zoo::rollmean(expr_MCL,     k = k, fill = NA, align = "center"),
+    expr_Control_s = zoo::rollmean(expr_Control, k = k, fill = NA, align = "center"),
+    expr_GRANTA_s  = zoo::rollmean(expr_GRANTA,  k = k, fill = NA, align = "center"),
+    log2FC_s       = zoo::rollmean(log2FC,       k = k, fill = NA, align = "center")
+  )
+
+### probe coordinates
+probe_start <- 478637
+probe_end   <- 702132
+
+probe_chr19 <- GRanges(
+  seqnames = "chr19",
+  ranges = IRanges(start = probe_start, end = probe_end)
+)
+probe_width <- width(probe_chr19)
+
+### Plots
+y_min <- min(df19$expr_Control_s, df19$expr_MCL_s, df19$expr_GRANTA_s, na.rm = TRUE)
+y_max <- max(df19$expr_Control_s, df19$expr_MCL_s, df19$expr_GRANTA_s, na.rm = TRUE)
+y_height <- (y_max - y_min) * 0.05
+
+p_along19_patients <- ggplot(df19, aes(x = pos)) +
+  geom_rect(
+    xmin = probe_start,
+    xmax = probe_end,
+    ymin = y_min,
+    ymax = y_min + y_height,
+    inherit.aes = FALSE,
+    fill = "#A275B3",
+    alpha = 0.8
+  ) +
+  geom_line(aes(y = expr_Control_s), linewidth = 1, color = "#7CD3F7") +
+  geom_line(aes(y = expr_MCL_s),     linewidth = 1, color = "#F26767") +
+  scale_y_continuous(name = "Mean normalized expression") +
+  scale_x_continuous(
+    breaks = seq(0, 6e7, by = 5e6),
+    labels = scales::label_number(scale = 1e-6, suffix = " Mb")
+  ) +
+  theme_classic() +
+  labs(x = "chr19 coordinate", linetype = NULL) + 
+  ggtitle("MCL patients")
+
+
+
+p_along19_GRANTA <- ggplot(df19, aes(x = pos)) +
+  geom_rect(
+    xmin = probe_start,
+    xmax = probe_end,
+    ymin = y_min,
+    ymax = y_min + y_height,
+    inherit.aes = FALSE,
+    fill = "#A275B3",
+    alpha = 0.8
+  ) +
+  geom_line(aes(y = expr_Control_s), linewidth = 1, color = "#7CD3F7") +
+  geom_line(aes(y = expr_GRANTA_s),  linewidth = 1, color = "#F26767") +
+  scale_y_continuous(name = "Mean normalized expression") +
+  scale_x_continuous(
+    breaks = seq(0, 6e7, by = 5e6),
+    labels = scales::label_number(scale = 1e-6, suffix = " Mb")
+  ) +
+  theme_classic() +
+  labs(x = "chr19 coordinate", linetype = NULL) + 
+  ggtitle("GRANTA")
+
+################### Expression vs distance to FISH probe #######################
+### Save tables for whole chromosome chr19
+## MLC
+chr19_genes_MCL <- all.genes.ens.MCL_all[seqnames(all.genes.ens.MCL_all) == "chr19"]
+dtn <- distanceToNearest(chr19_genes_MCL, probe_chr19)
+chr19_genes_MCL$dist_probe <- mcols(dtn)$distance
+
+df_chr19_MCL <- as.data.frame(chr19_genes_MCL)
+df_chr19_MCL$group <- ifelse(df_chr19_MCL$dist_probe <= 1e6, "Near (±1Mb)", "Far")
+write.csv2(df_chr19_MCL, "results/chr19_degs_dist_to_probe_patients.csv")
+
+## GRANTA
+chr19_genes_GRANTA <- all.genes.ens.GRANTA_all[seqnames(all.genes.ens.GRANTA_all) == "chr19"]
+dtn <- distanceToNearest(chr19_genes_GRANTA, probe_chr19)
+chr19_genes_GRANTA$dist_probe <- mcols(dtn)$distance
+
+df_chr19_GRANTA <- as.data.frame(chr19_genes_GRANTA)
+df_chr19_GRANTA$group <- ifelse(df_chr19_GRANTA$dist_probe <= 1e6, "Near (±1Mb)", "Far")
+write.csv2(df_chr19_GRANTA, "results/chr19_degs_dist_to_probe_GRANTA.csv")
+
+
+### Calculate stats for the genes on the same chr arm (chr19p)
+#"https://hgdownload.soe.ucsc.edu/goldenPath/hg38/database/cytoBand.txt.gz"
+cyto <- read.table(
+  "cytoBand.txt",
+  sep = "\t",
+  header = FALSE,
+  stringsAsFactors = FALSE
+)
+colnames(cyto) <- c("chr", "start", "end", "band", "gieStain")
+cyto19 <- subset(cyto, chr == "chr19")
+p_bands <- cyto19[grepl("^p", cyto19$band), ]
+p_end <- max(p_bands$end)
+
+### MCL patients
+chr19_genes_MCL <- all.genes.ens.MCL_all[seqnames(all.genes.ens.MCL_all) == "chr19"]
+
+# Restrict genes to chr19p using midpoint
+mid <- start(chr19_genes_MCL) + (width(chr19_genes_MCL) %/% 2)
+chr19p_genes_MCL <- chr19_genes_MCL[mid <= p_end]
+
+dtn <- distanceToNearest(chr19p_genes_MCL, probe_chr19)
+chr19p_genes_MCL$dist_probe <- mcols(dtn)$distance
+chr19p_genes_MCL$log_dist <- log10(chr19p_genes_MCL$dist_probe + 1)
+
+df_chr19p_MCL <- as.data.frame(chr19p_genes_MCL)
+df_chr19p_MCL$group <- ifelse(df_chr19p_MCL$dist_probe <= 1e6, "Near (±1Mb)", "Far")
+write.csv2(df_chr19p_MCL, "results/chr19p_degs_dist_to_probe_patients.csv")
+
+## Linear model
+lm_chr19p_MCL <- lm(log2FoldChange ~ log_dist, data=df_chr19p_MCL)
+summary(lm_chr19p_MCL)
+
+## Spearman correlation
+sp_chr19p_MCL <- cor.test(df_chr19p_MCL$log_dist, df_chr19p_MCL$log2FoldChange, method="spearman")
+sp_chr19p_MCL
+
+rho_MCL  <- -0.2119405 
+pval_MCL <- 1.986e-07
+n_MCL    <- nrow(df_chr19p_MCL)
+
+label_txt_MCL <- paste0(
+  "Spearman \u03C1 = ", sprintf("%.3f", rho_MCL),
+  "\n", "p = ", formatC(pval_MCL, format = "e", digits = 2),
+  "\n", "n = ", n_MCL
+)
+
+## Random permutation test
+# Observed Spearman rho
+obs_rho <- rho_MCL
+chr19p_len <- p_end 
+
+set.seed(1)
+B <- 10000  
+rho_null <- numeric(B)
+
+for (i in seq_len(B)) {
+  # random start, keeping probe fully inside chr19p
+  rs <- sample.int(chr19p_len - probe_width + 1, 1)
+  rand_probe <- GRanges("chr19", IRanges(rs, rs + probe_w - 1))
+  
+  dtn_i <- distanceToNearest(chr19p_genes_MCL, rand_probe)
+  log_dist_i <- log10(mcols(dtn_i)$distance + 1)
+  
+  rho_null[i] <- suppressWarnings(cor(log_dist_i, df_chr19p_MCL$log2FoldChange, method="spearman"))
+}
+
+# Empirical two-sided p-value
+p_emp <- (sum(abs(rho_null) >= abs(obs_rho), na.rm=TRUE) + 1) / (sum(!is.na(rho_null)) + 1)
+p_emp
+
+quantile(rho_null, c(0.025, 0.5, 0.975), na.rm=TRUE)
+
+## Plots
+# Loess
+p_linear_patients <- ggplot(df_chr19p_MCL, aes(x = log_dist, y = log2FoldChange)) +
+  geom_point(alpha = 0.15, size = 1, shape = 16) +
+  geom_smooth(method = "loess", color = "#B393C4", linewidth = 1.2) +
+  theme_classic() +
+  labs(x = "Distance to chr19 probe (log10 bp)",
+       y = "log2FC") +
+  annotate("text",
+           x = min(df_chr19$log_dist, na.rm = TRUE) + 0.2,
+           y = max(df_chr19$log2FoldChange, na.rm = TRUE),
+           hjust = 0, vjust = 1,
+           label = label_txt, size = 4)
+
+# Empirical p
+null_df <- data.frame(rho_null = rho_null)
+
+p_emp_p_patients <- ggplot(null_df, aes(x = rho_null)) +
+  stat_ecdf(geom = "step", linewidth = 0.9) +
+  geom_vline(xintercept = obs_rho, color = "red", linewidth = 1) +
+  theme_classic() +
+  labs(x = "Spearman ρ (random probe positions)",
+       y = "Empirical CDF") +
+  annotate("text",
+           x = min(rho_null, na.rm = TRUE),
+           y = 1, hjust = 0, vjust = 1.2,
+           label = paste0("Observed ρ = ", sprintf("%.3f", obs_rho),
+                          "\nEmpirical p = ", sprintf("%.3f", p_emp),
+                          "\nB = ", length(rho_null)),
+           size = 4) +
+  coord_cartesian(clip = "off")
+
+
+# Binary ±1 Mb
+summary_stats <- df_chr19p_MCL %>%
+  group_by(group) %>%
+  summarise(
+    mean   = mean(log2FoldChange, na.rm = TRUE),
+    median = median(log2FoldChange, na.rm = TRUE)
+  )
+
+p_binary_patients <- ggplot(df_chr19p_MCL, aes(x = group, y = log2FoldChange)) +
+  geom_boxplot() +
+  theme_classic() +
+  stat_compare_means(method = "wilcox.test",
+                     label = "p.format") +
+  geom_text(data = summary_stats,
+            aes(x = group,
+                y = max(df_chr19p_MCL$log2FoldChange, na.rm = TRUE) * 0.9,
+                label = paste0("Mean = ", round(mean, 2),
+                               "\nMedian = ", round(median, 2))),
+            inherit.aes = FALSE,
+            size = 4) +
+  ggtitle("MCL patients")
+
+### GRANTA
+chr19_genes_GRANTA <- all.genes.ens.GRANTA_all[seqnames(all.genes.ens.GRANTA_all) == "chr19"]
+# Restrict genes to chr19p using midpoint
+mid <- start(chr19_genes_GRANTA) + (width(chr19_genes_GRANTA) %/% 2)
+chr19p_genes_GRANTA <- chr19_genes_GRANTA[mid <= p_end]
+
+# Distance to probe
+dtn <- distanceToNearest(chr19p_genes_GRANTA, probe_chr19)
+chr19p_genes_GRANTA$dist_probe <- mcols(dtn)$distance
+chr19p_genes_GRANTA$log_dist <- log10(chr19p_genes_GRANTA$dist_probe + 1)
+
+df_chr19p_GRANTA <- as.data.frame(chr19p_genes_GRANTA)
+df_chr19p_GRANTA$group <- ifelse(df_chr19p_GRANTA$dist_probe <= 1e6, "Near (±1Mb)", "Far")
+write.csv2(df_chr19p_GRANTA, "results/chr19p_degs_dist_to_probe_GRANTA.csv.csv")
+
+## Linear model
+lm_chr19p_GRANTA <- lm(log2FoldChange ~ log_dist, data=df_chr19p_GRANTA)
+summary(lm_chr19p_GRANTA)
+
+## Spearman correlation
+sp_chr19p_GRANTA <- cor.test(df_chr19p_GRANTA$log_dist, df_chr19p_GRANTA$log2FoldChange, method="spearman")
+sp_chr19p_GRANTA
+
+rho_GRANTA  <- -0.2307418 
+pval_GRANTA <- 6.348e-06
+n_GRANTA   <- nrow(df_chr19p_GRANTA)
+
+label_txt_GRANTA <- paste0(
+  "Spearman \u03C1 = ", sprintf("%.3f", rho_GRANTA),
+  "\n", "p = ", formatC(pval_GRANTA, format = "e", digits = 2),
+  "\n", "n = ", n_MCL
+)
+
+## Random permutation test
+# Observed Spearman rho
+obs_rho_GRANTA <- rho_GRANTA
+chr19p_len <- p_end 
+
+set.seed(1)
+B <- 10000  
+rho_null_GRANTA <- numeric(B)
+
+for (i in seq_len(B)) {
+  rs <- sample.int(chr19p_len - probe_width + 1, 1)
+  rand_probe <- GRanges("chr19", IRanges(rs, rs + probe_w - 1))
+  
+  dtn_i <- distanceToNearest(chr19p_genes_GRANTA, rand_probe)
+  log_dist_i <- log10(mcols(dtn_i)$distance + 1)
+  
+  rho_null_GRANTA[i] <- suppressWarnings(cor(log_dist_i, df_chr19p_GRANTA$log2FoldChange, method="spearman"))
+}
+
+# Empirical two-sided p-value
+p_emp_GRANTA <- (sum(abs(rho_null_GRANTA) >= abs(obs_rho_GRANTA), na.rm=TRUE) + 1) / (sum(!is.na(rho_null_GRANTA)) + 1)
+p_emp_GRANTA
+
+quantile(rho_null_GRANTA, c(0.025, 0.5, 0.975), na.rm=TRUE)
+
+## Plots
+#Loess
+p_linear_GRANTA <- ggplot(df_chr19p_GRANTA, aes(x = log_dist, y = log2FoldChange)) +
+  geom_point(alpha = 0.15, size = 1, shape = 16) +
+  geom_smooth(method = "loess", color = "#B393C4", linewidth = 1.2) +
+  theme_classic() +
+  labs(x = "Distance to chr19 probe (log10 bp)",
+       y = "log2FC") +
+  annotate("text",
+           x = min(df_chr19$log_dist, na.rm = TRUE) + 0.2,
+           y = max(df_chr19$log2FoldChange, na.rm = TRUE),
+           hjust = 0, vjust = 1,
+           label = label_txt, size = 4)
+
+# Empirical p
+null_df_GRANTA <- data.frame(rho_null = rho_null_GRANTA)
+
+p_emp_p_GRANTA <- ggplot(null_df_GRANTA, aes(x = rho_null)) +
+  stat_ecdf(geom = "step", linewidth = 0.9) +
+  geom_vline(xintercept = obs_rho, color = "red", linewidth = 1) +
+  theme_classic() +
+  labs(x = "Spearman ρ (random probe positions)",
+       y = "Empirical CDF") +
+  annotate("text",
+           x = min(rho_null_GRANTA, na.rm = TRUE),
+           y = 1, hjust = 0, vjust = 1.2,
+           label = paste0("Observed ρ = ", sprintf("%.3f", obs_rho_GRANTA),
+                          "\nEmpirical p = ", sprintf("%.3f", p_emp),
+                          "\nB = ", length(rho_null_GRANTA)),
+           size = 4) +
+  coord_cartesian(clip = "off")
+
+# Binary ±1 Mb
+summary_stats <- df_chr19p_GRANTA %>%
+  group_by(group) %>%
+  summarise(
+    mean   = mean(log2FoldChange, na.rm = TRUE),
+    median = median(log2FoldChange, na.rm = TRUE)
+  )
+
+p_binary_GRANTA <- ggplot(df_chr19p_GRANTA, aes(x = group, y = log2FoldChange)) +
+  geom_boxplot() +
+  theme_classic() +
+  stat_compare_means(method = "wilcox.test",
+                     label = "p.format") +
+  geom_text(data = summary_stats,
+            aes(x = group,
+                y = max(df_chr19p_GRANTA$log2FoldChange, na.rm = TRUE) * 0.9,
+                label = paste0("Mean = ", round(mean, 2),
+                               "\nMedian = ", round(median, 2))),
+            inherit.aes = FALSE,
+            size = 4) +
+  ggtitle("GRANTA")
+
 
 ################################################################################
 #> sessionInfo()
