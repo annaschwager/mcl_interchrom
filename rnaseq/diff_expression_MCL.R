@@ -295,6 +295,7 @@ head(all.genes.ens)
 keep <- !is.na(mcols(all.genes.ens)$log2FoldChange)
 all.genes.ens.MCL <- all.genes.ens[keep,] #remove NAs and keep only DEGs
 head(all.genes.ens.MCL)
+all.genes.ens.MCL_all <- all.genes.ens.MCL
 all.genes.ens.MCL <- all.genes.ens.MCL[all.genes.ens.MCL$padj < 0.05]
 head(all.genes.ens.MCL)
 write.csv(all.genes.ens.MCL, "MCL_vs_c_DAG.csv")
@@ -316,6 +317,7 @@ head(all.genes.ens)
 keep <- !is.na(mcols(all.genes.ens)$log2FoldChange)
 all.genes.ens.GRANTA <- all.genes.ens[keep,] #remove NAs and keep only DEGs
 head(all.genes.ens.GRANTA)
+all.genes.ens.GRANTA_all <- all.genes.ens.GRANTA
 all.genes.ens.GRANTA <- all.genes.ens.GRANTA[all.genes.ens.GRANTA$padj < 0.05]
 all.genes.ens.GRANTA001 <- all.genes.ens.GRANTA[all.genes.ens.GRANTA$padj < 0.01]
 head(all.genes.ens.GRANTA)
@@ -496,6 +498,212 @@ naive_average <- data.frame(row.names(n), n$average)
 write.csv2(naive_average, "results/naive_norm_counts_averagevalues.csv")
 
 
+################# Observed vs expected N up genes #############################
+### MCL
+## Prepare per-chromosome table 
+genes_df <- as.data.frame(all.genes.ens.MCL_all) %>%
+  transmute(
+    chr = as.character(seqnames),
+    Gene_Name = Gene_Name,
+    padj,
+    log2FoldChange
+  ) %>%
+  filter(grepl("^chr([0-9]+|X|Y)$", chr)) %>%
+  distinct(chr, Gene_Name, .keep_all = TRUE) 
+
+df_panelA <- genes_df %>%
+  group_by(chr) %>%
+  summarise(
+    n_genes_chr = n(),
+    n_up_obs    = sum(padj < 0.05 & log2FoldChange > 1, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  mutate(
+    total_genes = sum(n_genes_chr),
+    total_up    = sum(n_up_obs),
+    p0          = total_up / total_genes,
+    n_up_expected = total_up * (n_genes_chr / total_genes),
+    enrichment    = n_up_obs / n_up_expected,
+    excess        = n_up_obs - n_up_expected
+  ) %>%
+  rowwise() %>%
+  mutate(
+    p_enrich = binom.test(
+      x = as.integer(n_up_obs),
+      n = as.integer(n_genes_chr),
+      p = p0,
+      alternative = "greater"
+    )$p.value
+  ) %>%
+  ungroup() %>%
+  mutate(
+    p_adj = p.adjust(p_enrich, method = "BH"),
+    p_lab = ifelse(p_adj < 1e-3, formatC(p_adj, format = "e", digits = 1),
+                   signif(p_adj, 2))
+  )
+
+## Plot absoolute counts
+df_left <- df_panelA %>%
+  arrange(n_up_obs) %>%
+  mutate(chr = factor(chr, levels = chr))
+
+df_long_left <- df_left %>%
+  select(chr, n_up_obs, n_up_expected) %>%
+  pivot_longer(
+    cols = c(n_up_obs, n_up_expected),
+    names_to = "type",
+    values_to = "count"
+  ) %>%
+  mutate(type = recode(type,
+                       n_up_obs = "Observed",
+                       n_up_expected = "Expected"))
+
+p_left <- ggplot(df_long_left, aes(x = chr, y = count, fill = type)) +
+  geom_col(position = position_dodge(width = 0.85), width = 0.8) +
+  coord_flip() +
+  scale_fill_manual(values = c(Expected = "grey70", Observed = "#F04E4E")) +
+  theme_classic() +
+  labs(x = NULL, y = "Number of upregulated genes", fill = NULL) +
+  geom_text(
+    data = df_left %>% mutate(y_lab = pmax(n_up_obs, n_up_expected) * 1.03),
+    aes(x = chr, y = y_lab, label = paste0("FDR=", p_lab)),
+    inherit.aes = FALSE,
+    size = 3,
+    hjust = 0
+  ) +
+  expand_limits(y = max(pmax(df_left$n_up_obs, df_left$n_up_expected)) * 1.15)
+
+## Plot difference
+df_right <- df_panelA %>%
+  arrange(excess) %>%
+  mutate(chr = factor(chr, levels = chr),
+         is_chr19 = as.character(chr) == "chr19")
+
+p_right <- ggplot(df_right, aes(x = chr, y = excess)) +
+  geom_col(aes(fill = is_chr19), width = 0.8) +
+  coord_flip() +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  scale_fill_manual(values = c(`TRUE` = "#7B4EA3",
+                               `FALSE` = "grey75"),
+                    guide = "none") +
+  theme_classic() +
+  labs(x = NULL, y = "Excess up genes (Observed − Expected)") +
+  geom_text(
+    aes(
+      y = excess + ifelse(excess >= 0, 1, -1),
+      label = paste0("FDR=", p_lab),
+      hjust = ifelse(excess >= 0, -0.05, 1.05)
+    ),
+    size = 3
+  ) +
+  expand_limits(y = max(df_right$excess) * 1.15)
+
+p_left
+p_right
+
+
+### GRANTA
+## Prepare per-chromosome table 
+genes_df <- as.data.frame(all.genes.ens.GRANTA_all) %>%
+  transmute(
+    chr = as.character(seqnames),
+    Gene_Name = Gene_Name,
+    padj,
+    log2FoldChange
+  ) %>%
+  filter(grepl("^chr([0-9]+|X|Y)$", chr)) %>%
+  distinct(chr, Gene_Name, .keep_all = TRUE) 
+
+df_panelA <- genes_df %>%
+  group_by(chr) %>%
+  summarise(
+    n_genes_chr = n(),
+    n_up_obs    = sum(padj < 0.05 & log2FoldChange > 1, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  mutate(
+    total_genes = sum(n_genes_chr),
+    total_up    = sum(n_up_obs),
+    p0          = total_up / total_genes,
+    n_up_expected = total_up * (n_genes_chr / total_genes),
+    enrichment    = n_up_obs / n_up_expected,
+    excess        = n_up_obs - n_up_expected
+  ) %>%
+  rowwise() %>%
+  mutate(
+    p_enrich = binom.test(
+      x = as.integer(n_up_obs),
+      n = as.integer(n_genes_chr),
+      p = p0,
+      alternative = "greater"
+    )$p.value
+  ) %>%
+  ungroup() %>%
+  mutate(
+    p_adj = p.adjust(p_enrich, method = "BH"),
+    p_lab = ifelse(p_adj < 1e-3, formatC(p_adj, format = "e", digits = 1),
+                   signif(p_adj, 2))
+  )
+
+## Plot absoolute counts
+df_left <- df_panelA %>%
+  arrange(n_up_obs) %>%
+  mutate(chr = factor(chr, levels = chr))
+
+df_long_left <- df_left %>%
+  select(chr, n_up_obs, n_up_expected) %>%
+  pivot_longer(
+    cols = c(n_up_obs, n_up_expected),
+    names_to = "type",
+    values_to = "count"
+  ) %>%
+  mutate(type = recode(type,
+                       n_up_obs = "Observed",
+                       n_up_expected = "Expected"))
+
+p_left_GRANTA <- ggplot(df_long_left, aes(x = chr, y = count, fill = type)) +
+  geom_col(position = position_dodge(width = 0.85), width = 0.8) +
+  coord_flip() +
+  scale_fill_manual(values = c(Expected = "grey70", Observed = "#F04E4E")) +
+  theme_classic() +
+  labs(x = NULL, y = "Number of upregulated genes", fill = NULL) +
+  geom_text(
+    data = df_left %>% mutate(y_lab = pmax(n_up_obs, n_up_expected) * 1.03),
+    aes(x = chr, y = y_lab, label = paste0("FDR=", p_lab)),
+    inherit.aes = FALSE,
+    size = 3,
+    hjust = 0
+  ) +
+  expand_limits(y = max(pmax(df_left$n_up_obs, df_left$n_up_expected)) * 1.15)
+
+## Plot difference
+df_right <- df_panelA %>%
+  arrange(excess) %>%
+  mutate(chr = factor(chr, levels = chr),
+         is_chr19 = as.character(chr) == "chr19")
+
+p_right_GRANTA <- ggplot(df_right, aes(x = chr, y = excess)) +
+  geom_col(aes(fill = is_chr19), width = 0.8) +
+  coord_flip() +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  scale_fill_manual(values = c(`TRUE` = "#7B4EA3",
+                               `FALSE` = "grey75"),
+                    guide = "none") +
+  theme_classic() +
+  labs(x = NULL, y = "Excess up genes (Observed − Expected)") +
+  geom_text(
+    aes(
+      y = excess + ifelse(excess >= 0, 1, -1),
+      label = paste0("FDR=", p_lab),
+      hjust = ifelse(excess >= 0, -0.05, 1.05)
+    ),
+    size = 3
+  ) +
+  expand_limits(y = max(df_right$excess) * 1.15)
+
+p_left_GRANTA
+p_right_GRANTA
+
 ################ Positional enrichment GSEA ####################################
 ### Helper functions
 add_symbol_to_gr <- function(gr, ensg_from = c("names", "mcols"), ensg_col = NULL) {
@@ -628,11 +836,11 @@ plot_chr_bar <- function(fg_df,
 ### Rank genes and add annotation
 ## MCL all
 ranks_MCL <- make_ranks_from_deseq(resMCL_naive_blood, stat_col = "stat")
-gr_sym_MCL <- add_symbol_to_gr(all.genes.ens.MCL, ensg_from = "names")
+gr_sym_MCL <- add_symbol_to_gr(all.genes.ens.MCL_all, ensg_from = "names")
 
 ## GRANTA
-ranks_GRANTA <- make_ranks_from_deseq(resGRANTA_naive_blood, stat_col = "stat")
-gr_sym_GRANTA <- add_symbol_to_gr(all.genes.ens.GRANTA, ensg_from = "names")
+ranks_GRANTA <- make_ranks_from_deseq(resGRA_naive_blood, stat_col = "stat")
+gr_sym_GRANTA <- add_symbol_to_gr(all.genes.ens.GRANTA_all, ensg_from = "names")
 
 ### Prepare chromosome sets 
 chr_sets_sym_MCL <- make_chr_pathways_from_gr_symbols(gr_sym_MCL, symbol_col = "SYMBOL")
@@ -659,7 +867,6 @@ fg_chr_genomewide_GRANTA <- run_fgsea_minimal(
   maxSize  = 50000
 )
 
-
 plot_chr_bar(
   fg_chr_genomewide_MCL,
   main = "Chromosome enrichment (GSEA) - MCL vs naive_blood"
@@ -674,80 +881,75 @@ plotEnrichment(chr_sets_sym[["CHR19"]], ranks_MCL)
 plotEnrichment(chr_sets_sym[["CHR19"]], ranks_GRANTA)
 
 ########################## Tables with chr19 up genes ##########################
-save_chr19_up_table <- function(res,
-                                gr_sym,
-                                out_csv = out_csv
-                                lfc_col = "log2FoldChange",
-                                padj_col = "padj",
-                                chr_focus = "chr19",
-                                lfc_min = 0,
-                                padj_max = 0.05) {
+save_chr19_up_table_from_gr <- function(gr,
+                                        out_csv,
+                                        lfc_min = 1,
+                                        padj_max = 0.05,
+                                        chr_focus = "chr19",
+                                        gene_col = "Gene_Name") {
+  df <- as.data.frame(gr) %>%
+    mutate(chr = as.character(seqnames)) %>%
+    filter(chr == chr_focus) %>%
+    filter(!is.na(.data[[gene_col]])) %>%
+    filter(!is.na(log2FoldChange), !is.na(padj)) %>%
+    filter(log2FoldChange > lfc_min, padj < padj_max) %>%
+    transmute(
+      gene = as.character(.data[[gene_col]]),
+      gene_id = rownames(.),
+      log2FoldChange,
+      padj,
+      chr,
+      start = start,
+      end   = end,
+      strand = as.character(strand)
+    ) %>%
+    # one gene = one row, matching Venn "unique()"
+    group_by(gene) %>%
+    arrange(padj, desc(log2FoldChange), .by_group = TRUE) %>%
+    slice(1) %>%
+    ungroup() %>%
+    arrange(padj, desc(log2FoldChange))
   
-  df <- as.data.frame(res)
-  df$symbol <- rownames(df)
-  
-  ## filter upregulated + significant
-  keep <- !is.na(df[[lfc_col]]) & is.finite(df[[lfc_col]]) &
-    !is.na(df[[padj_col]]) & is.finite(df[[padj_col]]) &
-    df[[lfc_col]] > lfc_min & df[[padj_col]] < padj_max
-  
-  df_up <- df[keep, c("symbol", lfc_col, padj_col), drop = FALSE]
-  colnames(df_up) <- c("symbol", "log2FoldChange", "padj")
-  
-  gr19 <- gr_sym[as.character(seqnames(gr_sym)) %in% c(chr_focus, sub("^chr", "", chr_focus))]
-  gr19$chr <- paste0("chr", sub("^chr", "", as.character(seqnames(gr19))))  ## normalize to chr*
-  
-  coords <- data.frame(
-    symbol = as.character(mcols(gr19)$SYMBOL),
-    chr    = gr19$chr,
-    start  = start(gr19),
-    end    = end(gr19),
-    strand = as.character(strand(gr19)),
-    stringsAsFactors = FALSE
-  )
-  
-  ## If multiple ranges per symbol, keep the widest 
-  coords$width <- coords$end - coords$start + 1L
-  coords <- coords[order(coords$symbol, -coords$width), ]
-  coords <- coords[!duplicated(coords$symbol), ]
-  coords$width <- NULL
-  
-  out <- merge(df_up, coords, by = "symbol", all.x = TRUE)
-  out <- out[!is.na(out$chr) & out$chr == "chr19", ]
-  
-  out <- out[order(out$padj, -out$log2FoldChange), ]
-  
-  write.csv(out, out_csv, row.names = FALSE)
-  out
+  write.csv2(df, out_csv, row.names = FALSE)
+  df
 }
 
-
-chr19_up_tbl_MCL <- save_chr19_up_table(
-  res    = resMCL_naive_blood,
-  gr_sym = gr_sym,
-  out_csv = "results/chr19_up_genes_MCL_vs_naive_blood_coordinates.csv",
-  lfc_min = 0.5,
-  padj_max = 0.05
+# MCL table 
+chr19_up_tbl_MCL <- save_chr19_up_table_from_gr(
+  gr       = all.genes.ens.MCL_all,
+  out_csv  = "results/chr19_up_genes_MCL_vs_naive_blood_coordinates.csv",
+  lfc_min  = 1,
+  padj_max = 0.05,
+  chr_focus = "chr19",
+  gene_col = "Gene_Name"
 )
 
-chr19_up_tbl_GRANTA <- save_chr19_up_table(
-  res    = resGRANTA_naive_blood,
-  gr_sym = gr_sym,
-  out_csv = "results/chr19_up_genes_GRANTA_vs_naive_blood_coordinates.csv",
-  lfc_min = 0.5,
-  padj_max = 0.05
+# GRANTA table 
+chr19_up_tbl_GRANTA <- save_chr19_up_table_from_gr(
+  gr       = all.genes.ens.GRANTA_all,
+  out_csv  = "results/chr19_up_genes_GRANTA_vs_naive_blood_coordinates.csv",
+  lfc_min  = 1,
+  padj_max = 0.05,
+  chr_focus = "chr19",
+  gene_col = "Gene_Name"
 )
 
-set_MCL <- unique(chr19_up_tbl_MCL$symbol)
-set_GRANTA <- unique(chr19_up_tbl_GRANTA$symbol)
+get_chr19_up_set <- function(gr, lfc_min = 1, padj_max = 0.05, gene_col = "Gene_Name") {
+  df <- as.data.frame(gr) %>%
+    mutate(chr = as.character(seqnames)) %>%
+    filter(chr == "chr19") %>%
+    filter(!is.na(.data[[gene_col]])) %>%
+    filter(!is.na(log2FoldChange), !is.na(padj)) %>%
+    filter(log2FoldChange > lfc_min, padj < padj_max)
+  
+  unique(df[[gene_col]])
+}
 
-venn_list <- list(
-  MCL = set_MCL,
-  GRANTA = set_GRANTA
-)
+set_MCL    <- get_chr19_up_set(all.genes.ens.MCL_all,    lfc_min = 1, padj_max = 0.05, gene_col = "Gene_Name")
+set_GRANTA <- get_chr19_up_set(all.genes.ens.GRANTA_all, lfc_min = 1, padj_max = 0.05, gene_col = "Gene_Name")
 
 p_venn_up_chr19 <- ggvenn(
-  venn_list,
+  list(MCL = set_MCL, GRANTA = set_GRANTA),
   fill_color = c("#993333", "#4DBBD5FF"),
   stroke_size = 0.8,
   set_name_size = 5,
@@ -883,6 +1085,8 @@ p_along19_GRANTA <- ggplot(df19, aes(x = pos)) +
 ################### Expression vs distance to FISH probe #######################
 ### Save tables for whole chromosome chr19
 ## MLC
+saveRDS(all.genes.ens.MCL_all, "results/all.genes.ens.MCL_all.RDS")
+
 chr19_genes_MCL <- all.genes.ens.MCL_all[seqnames(all.genes.ens.MCL_all) == "chr19"]
 dtn <- distanceToNearest(chr19_genes_MCL, probe_chr19)
 chr19_genes_MCL$dist_probe <- mcols(dtn)$distance
