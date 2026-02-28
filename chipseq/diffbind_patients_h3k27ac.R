@@ -17,6 +17,11 @@ library(ggvenn)
 library(VennDiagram)
 library(ChIPseeker)
 library(clusterProfiler)
+library(dplyr)
+library(tibble)
+library(GenomicRanges)
+library(fgsea)
+library(ggplot2)
 library(TxDb.Hsapiens.UCSC.hg38.knownGene)
 txdb <- TxDb.Hsapiens.UCSC.hg38.knownGene
 
@@ -89,6 +94,7 @@ covplot(up_mcl) #ChIP preaks over chromosomes
 covplot(up_mcl, chrs = c("chr11", "chr14", "chr17", "chr18", "chr19", "chr22"))
 covplot(down_mcl, chrs = c("chr11", "chr14", "chr17", "chr18", "chr19", "chr22"))
 covplot(up_mcl, chrs = c("chr11", "chr14", "chr19"))
+covplot(up_mcl, chrs = c("chr19"))
 
 up_annot <- annotatePeak(up_mcl, tssRegion=c(-3000, 3000), TxDb=txdb, annoDb="org.Hs.eg.db")
 down_annot <- annotatePeak(down_mcl, tssRegion=c(-3000, 3000), TxDb=txdb, annoDb="org.Hs.eg.db")
@@ -249,6 +255,114 @@ v2 <- ggvenn(int2,
 
 write.csv2(up_patients, "up_patients.csv")
 write.csv2(up_cells, "up_cells.csv")
+
+########################### Concordance with RNA ##############################
+rna_rds <- "/Users/annak/Documents/Work/Projects/MCL/rnaseq/DAG_MCL_deseq2/results/all.genes.ens.MCL_all.RDS"
+chr_use <- "chr19"
+tss_region <- c(-3000, 3000)
+promoter_only <- FALSE   # TRUE = promoters only; FALSE = all annotated peaks
+top_label_n <- 8
+
+## Load RNA-seq DE results (GRanges)
+all.genes.ens.MCL_all <- readRDS(rna_rds)
+
+### Get all ATAC peaks with statistics from DiffBind
+dbRep <- dba.report(dbObj_cont, th = 1, bCounts = FALSE)  # th=1 returns all peaks
+rep_df <- as.data.frame(dbRep)
+
+### Build GRanges with DiffBind stats in mcols
+gr_all <- GRanges(
+  seqnames = rep_df$seqnames,
+  ranges   = IRanges(start = rep_df$start, end = rep_df$end),
+  strand   = rep_df$strand
+)
+mcols(gr_all) <- rep_df[, setdiff(colnames(rep_df), c("seqnames", "start", "end", "width", "strand"))]
+
+### Annotate peaks to genes
+peakAnno_all <- annotatePeak(
+  gr_all,
+  TxDb = txdb,
+  tssRegion = tss_region,
+  annoDb = "org.Hs.eg.db"
+)
+all_df <- as.data.frame(peakAnno_all)
+
+### Aggregate ATAC logFC per gene on chr19
+atac_gene_chr <- all_df %>%
+  filter(seqnames == chr_use, !is.na(SYMBOL)) %>%
+  { if (promoter_only) filter(., grepl("^Promoter", annotation)) else . } %>%
+  group_by(SYMBOL) %>%
+  summarise(
+    ATAC_logFC = -mean(Fold, na.rm = TRUE), #inverted comparison
+    n_peaks = n(),
+    .groups = "drop"
+  )
+
+### Extract RNA logFC for chr19 genes
+rna_chr <- all.genes.ens.MCL_all[seqnames(all.genes.ens.MCL_all) == chr_use]
+
+rna_df_chr <- data.frame(
+  SYMBOL   = mcols(rna_chr)$Gene_Name,
+  RNA_logFC = mcols(rna_chr)$log2FoldChange,
+  stringsAsFactors = FALSE
+)
+
+### Merge + correlation
+merged_chr <- inner_join(atac_gene_chr, rna_df_chr, by = "SYMBOL")
+
+cor_test <- cor.test(merged_chr$ATAC_logFC, merged_chr$RNA_logFC, method = "spearman")
+
+print(list(
+  n_genes = nrow(merged_chr),
+  spearman_rho = unname(cor_test$estimate),
+  p_value = cor_test$p.value
+))
+
+
+### Plot
+lbl_ur <- merged_chr %>%
+  filter(ATAC_logFC > 0, RNA_logFC > 0) %>%              # upper-right quadrant
+  mutate(score_ur = ATAC_logFC + RNA_logFC) %>%         
+  arrange(desc(score_ur)) %>%
+  slice_head(n = top_label_n)
+
+stat_txt <- sprintf(
+  "Spearman ρ = %.3f\np = %.2g\nn = %d",
+  unname(cor_test$estimate),
+  cor_test$p.value,
+  nrow(merged_chr)
+)
+
+p_scatter <- ggplot(merged_chr, aes(x = ATAC_logFC, y = RNA_logFC)) +
+  geom_point(shape = 16, alpha = 0.6) +
+  geom_smooth(method = "lm", se = FALSE) +
+  theme_classic() +
+  labs(
+    x = "H3K27Ac log2FC, aggregated per gene",
+    y = "RNA log2FC",
+    title = paste0(chr_use, ": RNA vs H3K27Ac changes, MCL patients")
+  ) +
+  annotate(
+    "text",         
+    x = -Inf,
+    y = Inf,
+    label = stat_txt,
+    hjust = -0.1,   
+    vjust = 1.1
+  )
+
+p_scatter <- p_scatter +
+  ggrepel::geom_text_repel(
+    data = lbl_ur,
+    aes(label = SYMBOL),
+    box.padding = 0.4,
+    point.padding = 0.2,
+    max.overlaps = Inf,
+    min.segment.length = 0
+  )
+p_scatter
+
+
 
 ###############################################################################
 #> sessionInfo()
