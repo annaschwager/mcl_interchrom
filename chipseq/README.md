@@ -30,6 +30,6 @@ The consensus peaks are fed to the rank ordering of super-enhancers (ROSE) algor
 
 **5. se_consensus_intersections.R** \
 This script takes the output of the ROSE (from *se.sh*), detects the consensus SEs within each condition and the overlaps between the consensus SEs across conditions. It than associates the SEs to the nearest genes and performs over-representation enrichment analysis on the resulting gene sets. \
-*Used for :* Figure 1 f g, Supplementary figure 1.
+*Used for :* Figure 1 f g, Figure S1.
 
 
