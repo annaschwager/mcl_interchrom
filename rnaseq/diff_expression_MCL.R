@@ -1262,7 +1262,7 @@ n_GRANTA   <- nrow(df_chr19p_GRANTA)
 label_txt_GRANTA <- paste0(
   "Spearman \u03C1 = ", sprintf("%.3f", rho_GRANTA),
   "\n", "p = ", formatC(pval_GRANTA, format = "e", digits = 2),
-  "\n", "n = ", n_MCL
+  "\n", "n = ", n_GRANTA
 )
 
 ## Random permutation test
