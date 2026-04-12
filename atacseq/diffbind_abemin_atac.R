@@ -226,20 +226,57 @@ dba.plotVenn(dbObj_cont, contrast = c(2,5), bGain=TRUE, bAll=FALSE, main = "up b
 dba.plotVenn(dbObj_cont, contrast = c(3,4), bLoss=TRUE, bAll=FALSE, main = "down by Abe")
 dba.plotVenn(dbObj_cont, contrast = c(3,4), bGain=TRUE, bAll=FALSE, main = "up by Abe") 
 
+### The main venn
+## Standardize the seqlevels so they are common in both sets (use only standard chromosomes)
+std <- paste0("chr", c(1:22, "X"))
+up_granta_std <- keepSeqlevels(up_granta, std, pruning.mode="coarse")
+down_min_granta_std <- keepSeqlevels(down_min_granta, std, pruning.mode="coarse")
+
+## Create universe (all tested peaks)
+rep1_all <- keepSeqlevels(dba.report(dbObj_cont, contrast=1, th=1), std, pruning.mode="coarse")
+rep2_all <- keepSeqlevels(dba.report(dbObj_cont, contrast=2, th=1), std, pruning.mode="coarse")
+
+id1 <- paste0(seqnames(rep1_all), ":", start(rep1_all), "-", end(rep1_all))
+id2 <- paste0(seqnames(rep2_all), ":", start(rep2_all), "-", end(rep2_all))
+totalTest_union <- length(unique(c(id1, id2)))
+
+## Plot and test
+overlap <- findOverlapsOfPeaks(up_granta_std, down_min_granta_std)
+venn_basic <- makeVennDiagram(overlap, totalTest = totalTest_union)
+#$vennCounts
+#up_granta_std down_min_granta_std Counts count.up_granta_std count.down_min_granta_std
+#[1,]             0                   0  96161                   0                         0
+#[2,]             0                   1  15392                   0                     15392
+#[3,]             1                   0   8461                8461                         0
+#[4,]             1                   1   8225                8225                      8225
+
+## Hypergeometric test
+A <- 8461 + 8225
+B <- 15392 + 8225
+x <- 8225
+N <- totalTest_union
+
+logp <- phyper(q = x - 1, m = A, n = N - A, k = B,
+               lower.tail = FALSE, log.p = TRUE)
+
+neglog10p <- -as.numeric(logp) / log(10)
+neglog10p
+#[1] 2141.066
+
 ### loading GRanges from the MCL patients vs B naive comparisons
 up_mcl_granges <- readRDS("./up_mcl_granges.RDS")
 down_mcl_granges <- readRDS("./down_mcl_granges.RDS")
 
-overlap <- findOverlapsOfPeaks(up_mcl_granges, up_granta, down_min_granta)
+overlap <- findOverlapsOfPeaks(up_mcl_granges, up_granta_sign, down_min_granta_sign)
 venn <- makeVennDiagram(overlap)
 
-overlap2 <- findOverlapsOfPeaks(up_mcl_granges, up_granta, down_abe_granta)
+overlap2 <- findOverlapsOfPeaks(up_mcl_granges, up_granta_sign, down_abe_granta_sign)
 venn2 <- makeVennDiagram(overlap2)
 
-overlap3 <- findOverlapsOfPeaks(down_mcl_granges, down_granta, up_min_granta)
+overlap3 <- findOverlapsOfPeaks(down_mcl_granges, down_granta_sign, up_min_granta_sign)
 venn3 <- makeVennDiagram(overlap3)
 
-overlap4 <- findOverlapsOfPeaks(down_mcl_granges, down_granta, up_abe_granta)
+overlap4 <- findOverlapsOfPeaks(down_mcl_granges, down_granta_sign, up_abe_granta_sign)
 venn4 <- makeVennDiagram(overlap4)
 
 ############################### Peak annotation ###############################
@@ -432,6 +469,303 @@ peaks_per_chr_abe_up <- peaks_per_chr_abe_up[order(peaks_per_chr_abe_up$normfreq
 barplot(peaks_per_chr_abe_up$normfreq_size, names.arg = peaks_per_chr_abe_up$chr, ylab = "N up peaks normalised to chromSize")
 peaks_per_chr_abe_up <- peaks_per_chr_abe_up[order(peaks_per_chr_abe_up$normfreq_number,decreasing=TRUE),]
 barplot(peaks_per_chr_abe_up$normfreq_number, names.arg = peaks_per_chr_abe_up$chr, ylab = "N up peaks normalised to gene number patients")
+
+
+
+######### Link accessibility changes to expression changes under Min ##########
+### Load diff expression results 
+resGmin_G <- read.csv2("/Users/annak/Documents/Work/Projects/MCL/rnaseq/granta_blas_min_abe/results/resGmin_G.csv", row.names = 1)
+
+### remove non-canonical chromosomes 
+resGmin_G_dedup <- resGmin_G %>%
+  mutate(
+    chromosome_name = as.character(chromosome_name),
+    group = ifelse(chromosome_name == "19", "chr19", "other")
+  ) %>%
+  filter(!grepl("PATCH|CHR_", chromosome_name)) %>%
+  filter(!is.na(group)) %>%
+  arrange(padj, desc(abs(log2FoldChange))) %>%   # choose best row per gene
+  distinct(id, .keep_all = TRUE)
+
+write.csv2(resGmin_G_dedup, "/Users/annak/Documents/Work/Projects/MCL/rnaseq/granta_blas_min_abe/results/resGmin_G_clean_annot.csv")
+
+
+### peak-level table from ChIPseeker annotation
+gr_peaks <- c(down_min_granta_annot@anno, up_min_granta_annot@anno)
+peaks_df <- as.data.frame(gr_peaks) %>%
+  mutate(
+    chr = as.character(seqnames),
+    peak_id = paste0(chr, ":", start, "-", end)  
+  ) %>%
+  transmute(
+    peak_id,
+    chr,
+    start,
+    end,
+    symbol     = as.character(SYMBOL),
+    description  = as.character(GENENAME),
+    atac_lfc   = Fold,   
+    atac_fdr   = FDR,
+    annotation = as.character(annotation),
+    dist_tss   = distanceToTSS
+  ) %>%
+  filter(!is.na(symbol), symbol != "")
+
+### gene-level summarisation: keep 1 peak per gene
+### prefer promoters, then closest to TSS, then best FDR
+peaks_gene <- peaks_df %>%
+  mutate(is_promoter = grepl("^Promoter", annotation)) %>%
+  arrange(symbol, desc(is_promoter), abs(dist_tss), atac_fdr) %>%
+  distinct(symbol, .keep_all = TRUE) %>%
+  select(symbol, peak_id, chr, start, end, atac_lfc, atac_fdr, annotation, dist_tss)
+
+### RNA table 
+rna_gene <- resGmin_G_dedup %>%
+  transmute(
+    symbol   = as.character(id),
+    rna_lfc  = log2FoldChange,
+    rna_padj = padj,
+    group    = group
+  ) %>%
+  filter(!is.na(symbol), symbol != "")
+
+### Split by category
+pick_one_peak_per_gene <- function(df) {
+  df %>%
+    arrange(symbol, abs(dist_tss), atac_fdr) %>%   # closest-to-TSS, then best FDR
+    distinct(symbol, .keep_all = TRUE)
+}
+
+peaks_prom <- peaks_df %>%
+  filter(grepl("^Promoter", annotation)) %>%
+  pick_one_peak_per_gene() %>%
+  mutate(
+    category = ifelse(atac_lfc > 0,
+                      "promoter_ATAC_up",
+                      "promoter_ATAC_down"))
+
+peaks_distal <- peaks_df %>%
+  filter(annotation %in% c("Distal Intergenic")) %>%  
+  pick_one_peak_per_gene() %>%
+  mutate(
+    category = ifelse(atac_lfc > 0,
+                      "distal_ATAC_up",
+                      "distal_ATAC_down"))
+
+peaks_exon <- peaks_df %>%
+  filter(grepl("Exon", annotation)) %>%
+  pick_one_peak_per_gene()  %>%
+  mutate(
+    category = ifelse(atac_lfc > 0,
+                      "exon_ATAC_up",
+                      "exon_ATAC_down"))
+
+
+######### Link accessibility changes to expression changes under Min ##########
+### Load diff expression results 
+resGmin_G <- read.csv2("/Users/annak/Documents/Work/Projects/MCL/rnaseq/granta_blas_min_abe/results/resGmin_G.csv", row.names = 1)
+
+### remove non-canonical chromosomes 
+resGmin_G_dedup <- resGmin_G %>%
+  mutate(
+    chromosome_name = as.character(chromosome_name),
+    group = ifelse(chromosome_name == "19", "chr19", "other")
+  ) %>%
+  filter(!grepl("PATCH|CHR_", chromosome_name)) %>%
+  filter(!is.na(group)) %>%
+  arrange(padj, desc(abs(log2FoldChange))) %>%   # choose best row per gene
+  distinct(id, .keep_all = TRUE)
+
+write.csv2(resGmin_G_dedup, "/Users/annak/Documents/Work/Projects/MCL/rnaseq/granta_blas_min_abe/results/resGmin_G_clean_annot.csv")
+
+
+### peak-level table from ChIPseeker annotation
+gr_peaks <- c(down_min_granta_annot@anno, up_min_granta_annot@anno)
+peaks_df <- as.data.frame(gr_peaks) %>%
+  mutate(
+    chr = as.character(seqnames),
+    peak_id = paste0(chr, ":", start, "-", end)  
+  ) %>%
+  transmute(
+    peak_id,
+    chr,
+    start,
+    end,
+    symbol     = as.character(SYMBOL),
+    description  = as.character(GENENAME),
+    atac_lfc   = Fold,   
+    atac_fdr   = FDR,
+    annotation = as.character(annotation),
+    dist_tss   = distanceToTSS
+  ) %>%
+  filter(!is.na(symbol), symbol != "")
+
+### gene-level summarisation: keep 1 peak per gene
+### prefer promoters, then closest to TSS, then best FDR
+peaks_gene <- peaks_df %>%
+  mutate(is_promoter = grepl("^Promoter", annotation)) %>%
+  arrange(symbol, desc(is_promoter), abs(dist_tss), atac_fdr) %>%
+  distinct(symbol, .keep_all = TRUE) %>%
+  select(symbol, peak_id, chr, start, end, atac_lfc, atac_fdr, annotation, dist_tss)
+
+### RNA table 
+rna_gene <- resGmin_G_dedup %>%
+  transmute(
+    symbol   = as.character(id),
+    rna_lfc  = log2FoldChange,
+    rna_padj = padj,
+    group    = group
+  ) %>%
+  filter(!is.na(symbol), symbol != "")
+
+### Split by category
+pick_one_peak_per_gene <- function(df) {
+  df %>%
+    arrange(symbol, abs(dist_tss), atac_fdr) %>%   # closest-to-TSS, then best FDR
+    distinct(symbol, .keep_all = TRUE)
+}
+
+peaks_prom <- peaks_df %>%
+  filter(grepl("^Promoter", annotation)) %>%
+  pick_one_peak_per_gene() %>%
+  mutate(
+    category = ifelse(atac_lfc > 0,
+                      "promoter_ATAC_up",
+                      "promoter_ATAC_down"))
+
+peaks_distal <- peaks_df %>%
+  filter(annotation %in% c("Distal Intergenic")) %>%  
+  pick_one_peak_per_gene() %>%
+  mutate(
+    category = ifelse(atac_lfc > 0,
+                      "distal_ATAC_up",
+                      "distal_ATAC_down"))
+
+peaks_exon <- peaks_df %>%
+  filter(grepl("Exon", annotation)) %>%
+  pick_one_peak_per_gene()  %>%
+  mutate(
+    category = ifelse(atac_lfc > 0,
+                      "exon_ATAC_up",
+                      "exon_ATAC_down"))
+
+### Calculate the genome average for the genes not associated with a diff peak
+genes_with_peak <- bind_rows(
+  peaks_prom,
+  peaks_distal,
+  peaks_exon
+) %>%
+  pull(symbol) %>%
+  unique()
+
+rna_baseline <- rna_gene %>%
+  filter(!symbol %in% genes_with_peak)
+
+
+### Plot
+df_all <- rna_gene %>%
+  mutate(category = "baseline") %>%
+  bind_rows(
+    peaks_prom %>% select(symbol, category) %>% left_join(rna_gene, by="symbol"),
+    peaks_distal %>% select(symbol, category) %>% left_join(rna_gene, by="symbol"),
+    peaks_exon %>% select(symbol, category) %>% left_join(rna_gene, by="symbol")
+  )
+
+baseline_median <- median(df_all$rna_lfc[df_all$category == "baseline"], na.rm = TRUE)
+
+df_all$category <- factor(
+  df_all$category,
+  levels = c(
+    "promoter_ATAC_down",
+    "exon_ATAC_down",
+    "distal_ATAC_down",
+    "baseline",
+    "promoter_ATAC_up",
+    "exon_ATAC_up",
+    "distal_ATAC_up"
+  )
+)
+
+comparisons <- list(
+  c("promoter_ATAC_down", "baseline"),
+  c("distal_ATAC_down",   "baseline"),
+  c("exon_ATAC_down",     "baseline"),
+  c("promoter_ATAC_up",   "baseline"),
+  c("distal_ATAC_up",     "baseline"),
+  c("exon_ATAC_up",       "baseline")
+)
+
+ggplot(df_all, aes(x = category, y = rna_lfc, fill = category)) +
+  geom_boxplot(
+    width = 0.6,
+    color = "black",
+    outlier.shape = NA
+  ) +
+  geom_hline(
+    yintercept = baseline_median,
+    linetype = "dotted",
+    linewidth = 0.6
+  ) +
+  stat_compare_means(
+    comparisons = comparisons,
+    method = "wilcox.test",
+    label = "p.signif",
+    hide.ns = FALSE
+  ) +
+  scale_fill_manual(values = c(
+    "promoter_ATAC_down" = "#4B728D",
+    "distal_ATAC_down"   = "#B6CFDD",
+    "exon_ATAC_down"     = "#8AADC1",
+    "baseline"           = "grey70",
+    "promoter_ATAC_up"   = "#CC5D5D",
+    "distal_ATAC_up"     = "#FFCCCC",
+    "exon_ATAC_up"       = "#F69899"
+  )) +
+  theme_classic() +
+  theme(
+    axis.text.x = element_text(angle = 35, hjust = 1),
+    legend.position = "none"
+  ) +
+  labs(
+    x = NULL,
+    y = "RNA log2FC (GRANTA+Minnelide vs GRANTA)"
+  )
+
+
+ggplot(df_all, aes(x = category, y = rna_lfc, fill = category)) +
+  geom_boxplot(
+    width = 0.6,
+    color = "black",
+    outlier.shape = NA
+  ) +
+  geom_hline(
+    yintercept = baseline_median,
+    linetype = "dotted",
+    linewidth = 0.6
+  ) +
+  scale_fill_manual(values = c(
+    "promoter_ATAC_down" = "#4B728D",
+    "distal_ATAC_down"   = "#B6CFDD",
+    "exon_ATAC_down"     = "#8AADC1",
+    "baseline"           = "grey70",
+    "promoter_ATAC_up"   = "#CC5D5D",
+    "distal_ATAC_up"     = "#FFCCCC",
+    "exon_ATAC_up"       = "#F69899"
+  )) +
+  theme_classic() + coord_cartesian(ylim = c(-4, 9)) + 
+  scale_y_continuous(breaks = seq(-4, 10, 2)) +
+  theme(
+    axis.text.x = element_text(angle = 35, hjust = 1),
+    legend.position = "none"
+  ) +
+  labs(
+    x = NULL,
+    y = "RNA log2FC (GRANTA+Minnelide vs GRANTA)"
+  )
+
+
+
+
 
 #> sessionInfo()
 #R version 4.3.0 (2023-04-21)
