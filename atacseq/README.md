@@ -11,9 +11,9 @@ Briefly, the files were trimmed to get rid of the sequencing adapters using Trim
 **1. diffbind_patients_atac.R** \
 This script takes the bam files and the ATAC peaks detected by [MACS2](https://pypi.org/project/MACS2/) in MCL patients samples and naive B cell samples from healthy donors and identifies the differentially acessible sites between these conditions using [Diffbind](https://bioconductor.org/packages/release/bioc/html/DiffBind.html). It than performs the annotation and downstream analyses on the differential peaks.
 
-*Used for:* Figure 3 f
+*Used for:* Figure 1 a-c, Figure 3 f
 
 **2. diffbind_abemin_atac.R** \
 This script takes the bam files and the ATAC peaks detected by [MACS2](https://pypi.org/project/MACS2/) in MCL (GRANTA) and control lymphoblastoid (BLAS) cell lines treated or not with Minnelide (50 nM, 3days) or Abemaciclib (500nM, 7 days) and identifies the differentially acessible sites between these conditions using [Diffbind](https://bioconductor.org/packages/release/bioc/html/DiffBind.html). It than performs the functional annotation and downstream analyses on the identified peaks. 
 
-*Used for:* Figure 5 d-g
+*Used for:* Figure 5 d-g, Figure S3 b-c
