@@ -1,5 +1,5 @@
 ## ChIP-seq analysis 
-This folder contains the scripts used for the downstream analysis and visualisation of the ChIP-seq data from the **article X**. \
+This folder contains the scripts used for the downstream analysis and visualisation of the ChIP-seq data. \
 The raw sequencing data was generated in the CNRS UMR9018 and deposited to [GEO](https://www.ncbi.nlm.nih.gov/geo/) (GSE291373) or downloaded from [EGA](https://ega-archive.org/) (EGAD00001001502, EGAD00001001519, EGAD00001002397).
 
 ### File pre-processing
