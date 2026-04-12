@@ -26,6 +26,8 @@ library(enrichplot)
 library(DOSE)
 library(karyoploteR)
 library(EnsDb.Hsapiens.v86)
+library(dplyr)
+library(ggpubr)
 
 ################### Loading the count table ##############################
 counts = read.table("salmon.merged.gene_counts.tsv", header = T)
@@ -94,6 +96,9 @@ m25 <- getBM(attributes = c('chromosome_name', 'start_position', 'end_position',
 resM25_c_df <- as.data.frame(resM25_c)
 resM25_c_df$id <- row.names(resM25_c)
 resM25_c_df <- left_join(resM25_c_df, M25, by = join_by("id" == "hgnc_symbol"))
+
+resM25_c_df <- resM25_c_df %>%
+  dplyr::distinct(id, .keep_all = TRUE)
 write.csv2(resM25_c_df, "results/res25Min_3d.csv")
 
 resM50_c <- resM50_c[complete.cases(resM50_c),]
@@ -157,7 +162,7 @@ volc_A_c <- ggplot(data=as.data.frame(resA_c)) + geom_point(aes(x=log2FoldChange
 
 ################################### Venns ##################################
 # loading the results from the MCL patients vs B naive comparison
-MCL_vs_naive <- read.csv("./resMCL_naive_blood.csv")
+MCL_vs_naive <- read.csv("/Users/annak/Documents/Work/Projects/MCL/rnaseq/DAG_MCL_deseq2/results/resMCL_naive_blood.csv")
 rownames(MCL_vs_naive) <- MCL_vs_naive$X
 mcl_up <- MCL_vs_naive[MCL_vs_naive$log2FoldChange > 1 & MCL_vs_naive$padj < 0.05,]
 
@@ -207,6 +212,50 @@ names(intersection_mcl_enh_abe) <- c("MCL_DAG_vs_naive_up",
 vennAbe <- ggvenn(intersection_mcl_enh_abe,
                  stroke_size = 0.5, set_name_size = 4,
                  show_percentage = FALSE)
+
+#################### Hypergeometric test on intersections #####################
+
+intersection_mcl_min25 <- list(A=mcl_up$Gene_Name,
+                               B=rownames(resM25_c_down))
+names(intersection_mcl_min25) <- c("MCL_DAG_vs_naive_up",
+                                       "down by Min25, patient")
+
+venn_min <- ggvenn(intersection_mcl_min25,
+                 stroke_size = 0.5, set_name_size = 4,
+                 show_percentage = FALSE)
+
+N = length(rownames(counts))
+A = 2160+624
+B = 2003+624
+x = 624
+
+phyper(q = x - 1,
+       m = A,
+       n = N-A,
+       k = B,
+       lower.tail = FALSE)
+
+
+intersection_mcl_min50 <- list(A=mcl_up$Gene_Name,
+                               B=rownames(resM50_c_down))
+names(intersection_mcl_min50) <- c("MCL_DAG_vs_naive_up",
+                                    "down by Min50, patient")
+
+venn_min50 <- ggvenn(intersection_mcl_min50 ,
+                   stroke_size = 0.5, set_name_size = 4,
+                   show_percentage = FALSE)
+
+N = length(rownames(counts))
+A = 2637+147
+B = 855+147
+x = 147
+
+phyper(q = x - 1,
+       m = A,
+       n = N-A,
+       k = B,
+       lower.tail = FALSE)
+
 
 ############################## Enrichment analysis ################################
 ### GSEA ###
@@ -333,6 +382,44 @@ compGO_25_MF <- compareCluster(geneCluster   = list25,
 write.csv2(compGO_25_MF, "./results/go_enrichment_MF_Min25.csv")
 dotplot(compGO_25_MF, showCategory = 10, title = "go_enrichment_MF_Min25")
 
+### Selected plots
+df_go <- as.data.frame(compGO_25)
+
+df_go_down <- df_go %>%
+  filter(grepl("down", Cluster, ignore.case = TRUE)) %>%   # adjust if needed
+  mutate(
+    GeneRatio_num = sapply(GeneRatio, function(x) eval(parse(text = x)))
+  ) %>%
+  arrange(p.adjust) %>%
+  slice_head(n =10) %>%
+  mutate(
+    Description = factor(Description, levels = rev(Description))
+  )
+
+ggplot(df_go_down,
+       aes(x = reorder(Description, GeneRatio_num),
+           y = GeneRatio_num,
+           fill = p.adjust)) +
+  geom_col(width = 0.8) +
+  coord_flip() +
+  theme_classic() +
+  scale_fill_gradient(
+    low = "#3E667C",
+    high = "#A8BFCC",
+    trans = "reverse",
+    name = "adj. p-value"
+  ) +
+  labs(
+    title = "GO enrichment of down genes",
+    x = "GO Biological Process",
+    y = "Gene ratio"
+  ) +
+  theme(
+    plot.title = element_text(face = "bold"),
+    axis.text.y = element_text(size = 10)
+  )
+
+
 ### KEGG ###
 #converting to entrez
 universe_entrez = bitr(rownames(counts), 
@@ -431,6 +518,7 @@ compDO_A <- compareCluster(geneCluster   = listA_entrez,
                             readable = TRUE)
 write.csv2(compDO_A, "./results/DO_enrichment_A.csv")
 dotplot(compDO_A, showCategory = 10, title = "DO_enrichment_A")
+
 
 ################## Enrichment analysis on intersection lists ###################
 #Genes down by min and up in MCL GO
@@ -533,6 +621,7 @@ compKEGG_int4 <- enrichKEGG(int4_entrez,
 write.csv2(compKEGG_int4, "./results/go_enrichment_kegg_reg_by_enh_down_by_abe.csv")
 dotplot(compKEGG_int4, showCategory = 10, title = "go_enrichment_kegg_reg_by_enh_down_by_abe")
 
+
 ############## Barplots DEGs per chromosome ########################
 ### DEGs per chromosome, MCL
 chromsizes <- read.csv2("./chromSizes.csv", header = TRUE)
@@ -614,6 +703,299 @@ df_50_down <- df_50_down[order(df_50_down$normfreq_size,decreasing=TRUE),]
 barplot(df_50_down$normfreq_size, names.arg = df_50_down$chr, ylab = "N down DEGs Min50 normalised to chromSize patients")
 df_50_down <- df_50_down[order(df_50_down$normfreq_number,decreasing=TRUE),]
 barplot(df_50_down$normfreq_number, names.arg = df_50_down$chr, ylab = "N down DEGs Min50 normalised to gene number patients")
+
+
+############################## Chr19 vs others ################################
+df_plot <- resM25_c_df %>%
+  mutate(
+    chromosome_name = as.character(chromosome_name),
+    group = ifelse(chromosome_name == "19", "chr19", "other")
+  ) %>%
+  filter(!grepl("PATCH|CHR_", chromosome_name)) %>%
+  filter(!is.na(group))
+
+#Remove points above 99.9th percentile
+threshold <- quantile(df_plot$log2FoldChange, 0.999)
+df_plot_trim <- df_plot %>%
+  filter(log2FoldChange < threshold)
+
+p_binary_patients <- ggplot(df_plot_trim, aes(x = group, y = log2FoldChange)) +
+  geom_boxplot() +
+  theme_classic() +
+  stat_compare_means(method = "wilcox.test",
+                     label = "p.format")
+
+
+df_plot <- resM50_c_df %>%
+  mutate(
+    chromosome_name = as.character(chromosome_name),
+    group = ifelse(chromosome_name == "19", "chr19", "other")
+  ) %>%
+  filter(!grepl("PATCH|CHR_", chromosome_name)) %>%
+  filter(!is.na(group))
+
+#Remove points above 99.9th percentile
+threshold <- quantile(df_plot$log2FoldChange, 0.999)
+df_plot_trim <- df_plot %>%
+  filter(log2FoldChange < threshold)
+
+p_binary_patients <- ggplot(df_plot_trim, aes(x = group, y = log2FoldChange)) +
+  geom_boxplot() +
+  theme_classic() +
+  stat_compare_means(method = "wilcox.test",
+                     label = "p.format")
+
+
+################## Selected genes expression ##########################
+
+vst <- vst(dds, blind = TRUE)
+expr <- assay(vst)["CCND1", ]
+
+df_ccnd1 <- data.frame(
+  expression = as.numeric(expr),
+  condition  = colData(dds)$cond
+) %>% filter(cond == "GRANTA" | cond == "GRANTA_min")
+
+
+ggplot(df_ccnd1, aes(x = condition, y = expression, fill = condition)) +
+  geom_boxplot(width = 0.6, outlier.shape = NA) +
+  geom_jitter(width = 0.15, size = 2, alpha = 1) +
+  theme_classic() + coord_cartesian(ylim = c(13, 14.5)) +
+  labs(
+    x = NULL,
+    y = "CCND1 expression (VST)"
+  ) + theme(legend.position = "none")
+
+
+############ Transcriptional reversal scatters #######################
+### Classify all genes as chr19 near probe, chr19 others, others
+
+probe_start <- 478637
+probe_end   <- 702132
+
+probe_chr19 <- GRanges(
+  seqnames = "chr19",
+  ranges = IRanges(start = probe_start, end = probe_end)
+)
+probe_width <- width(probe_chr19)
+
+near_bp <- 1e6
+
+df_lfc <- resM25_c_df %>%
+  transmute(
+    gene = id,
+    chr  = as.character(chromosome_name),
+    start = as.numeric(start_position),
+    end   = as.numeric(end_position),
+    lfc   = as.numeric(log2FoldChange),
+    padj  = as.numeric(padj)
+  ) %>%
+  # keep canonical chroms only; normalize to "chr*"
+  mutate(chr = paste0("chr", sub("^chr", "", chr))) %>%
+  filter(grepl("^chr([0-9]+|X|Y)$", chr)) %>%
+  filter(!is.na(start), !is.na(end))
+
+gr_all <- GRanges(
+  seqnames = df_lfc$chr,
+  ranges   = IRanges(start = df_lfc$start, end = df_lfc$end),
+  gene     = df_lfc$gene,
+  lfc      = df_lfc$lfc,
+  padj     = df_lfc$padj
+)
+
+# de-duplicate repeated genes like ACTG1:
+# keep the entry with smallest padj, then largest |lfc|
+o <- order(mcols(gr_all)$padj, -abs(mcols(gr_all)$lfc))
+gr_all <- gr_all[o]
+gr_all <- gr_all[!duplicated(mcols(gr_all)$gene)]
+
+# Compute distances 
+gr19 <- gr_all[seqnames(gr_all) == "chr19"]
+dtn  <- distanceToNearest(gr19, probe_chr19)
+mcols(gr19)$dist_probe <- mcols(dtn)$distance
+
+df_out <- bind_rows(
+  as.data.frame(gr19) %>%
+    transmute(
+      gene = gene,
+      chr  = as.character(seqnames),
+      start, end,
+      lfc, padj,
+      dist_probe = dist_probe,
+      group = ifelse(dist_probe <= near_bp, "chr19 near probe (±1Mb)", "chr19 other")
+    ),
+  as.data.frame(gr_all[seqnames(gr_all) != "chr19"]) %>%
+    transmute(
+      gene = gene,
+      chr  = as.character(seqnames),
+      start, end,
+      lfc, padj,
+      dist_probe = NA_real_,
+      group = "other chromosomes"
+    )
+)
+
+### Prepare side by side LF + distance groups
+codf_mcl_naive <- as.data.frame(MCL_vs_naive) %>%
+  mutate(gene = rownames(MCL_vs_naive)) %>%
+  select(gene, lfc_mcl_naive  = log2FoldChange)
+
+df_M25 <- as.data.frame(resM25_c_df) %>%
+  mutate(gene = id) %>%
+  select(gene, lfc_mcl_min = log2FoldChange)
+
+df_merge <- inner_join(codf_mcl_naive, df_M25, by = "gene")
+
+df_merge <- df_merge %>%
+  left_join(
+    df_out %>% select(gene, group),
+    by = "gene"
+  ) %>%
+  filter(!is.na(group))
+
+cor.test(df_merge$lfc_mcl_naive, df_merge$lfc_mcl_min, method = "spearman")
+#-0.1030742 , p-value < 2.2e-16
+
+cor_by_group <- df_merge %>%
+  filter(!is.na(group)) %>%
+  group_by(group) %>%
+  summarise(
+    n = n(),
+    rho = cor(lfc_mcl_naive, lfc_mcl_min, method = "spearman"),
+    p_value = cor.test(lfc_mcl_naive, lfc_mcl_min, method = "spearman")$p.value
+  )
+
+cor_by_group
+#group                       n    rho   p_value
+#1 chr19 near probe (±1Mb)    44 -0.0311 8.41e- 1
+#2 chr19 other               975 -0.185  6.34e- 9
+#3 other chromosomes       12275 -0.0993 2.95e-28
+
+### Plot
+
+ggplot() +
+  # background genomewide points
+  geom_point(
+    data = df_merge %>% 
+      filter(group == "other chromosomes"),
+    aes(x = lfc_mcl_naive, y = lfc_mcl_min),
+    color = "grey70",
+    alpha = 0.2,
+    size = 0.8,
+    shape = 16
+  ) +
+  # chr19 other
+  geom_point(
+    data = df_merge %>% 
+      filter(group == "chr19 other"),
+    aes(x = lfc_mcl_naive, y = lfc_mcl_min),
+    color = "#A374B2",
+    alpha = 1,
+    size = 1,
+    shape = 16
+  ) +
+  # chr19 near probe
+  geom_point(
+    data = df_merge %>% 
+      filter(group == "chr19 near probe (±1Mb)"),
+    aes(x = lfc_mcl_naive, y = lfc_mcl_min),
+    color = "#52335E",
+    alpha = 1,
+    size = 1.5,
+    shape = 16
+  ) +
+  # regression lines
+  geom_smooth(
+    data = df_merge,
+    aes(x = lfc_mcl_naive, y = lfc_mcl_min),
+    method = "lm",
+    color = "black",
+    se = FALSE
+  ) +
+  theme_classic() +
+  labs(
+    x = "log2FC (MCL vs naive)",
+    y = "log2FC (MCL+Min vs MCL)"
+  )
+
+######### Enrichment analysis of transcriptional reversal #####################
+df_mcl <- as.data.frame(MCL_vs_naive) %>%
+  tibble::rownames_to_column("gene") %>%
+  select(gene,
+         lfc_mcl = log2FoldChange,
+         padj_mcl = padj) %>% distinct(gene, .keep_all = TRUE)
+
+
+df_min <- as.data.frame(resM25_c_df) %>%
+  dplyr::select(
+    gene = id,
+    lfc_min = log2FoldChange,
+    padj_min = padj
+  ) %>% distinct(gene, .keep_all = TRUE)
+
+df_all <- full_join(df_mcl, df_min, by = "gene")
+
+lfc_thr  <- 1
+padj_max <- 0.05
+
+df_all <- full_join(df_mcl, df_min, by = "gene") %>%
+  mutate(
+    MCL_up = !is.na(padj_mcl) & !is.na(lfc_mcl) & padj_mcl < padj_max & lfc_mcl >  lfc_thr,
+    Min_down = !is.na(padj_min) & !is.na(lfc_min) & padj_min < padj_max & lfc_min < -lfc_thr
+  )
+
+tab <- df_all %>%
+  filter(MCL_up) %>%
+  summarise(
+    n_MCL_up = n(),
+    n_reversed = sum(Min_down),
+    frac_reversed = n_reversed / n_MCL_up
+  )
+
+tab
+
+# Rates (as fractions)
+rate_bg   <- mean(df_all$Min_down)
+rate_gbup <- mean(df_all$Min_down[df_all$MCL_up])
+
+# Fisher enrichment
+mat <- table(df_all$MCL_up, df_all$Min_down)
+ft <- fisher.test(mat)
+
+or   <- unname(ft$estimate)
+pval <- ft$p.value
+
+label_txt <- paste0(
+  "OR = ", sprintf("%.2f", or),
+  "\nFisher p = ", formatC(pval, format = "e", digits = 2)
+)
+
+df_bar <- tibble::tibble(
+  group = factor(c("Genome-wide", "MCL up genes"),
+                 levels = c("Genome-wide", "MCL up genes")),
+  frac  = c(rate_bg, rate_gbup)
+)
+
+p_bar <- ggplot(df_bar, aes(x = group, y = frac)) +
+  geom_col(width = 0.7, fill = "grey70") +
+  geom_text(aes(label = sprintf("%.1f%%", 100 * frac)),
+            vjust = -0.4, size = 4) +
+  annotate("text",
+           x = 1.5,
+           y = max(df_bar$frac) * 1.15,
+           label = label_txt,
+           size = 4) +
+  scale_y_continuous(
+    labels = scales::percent_format(accuracy = 1),
+    expand = expansion(mult = c(0, 0.2))
+  ) +
+  theme_classic() +
+  labs(
+    x = NULL,
+    y = "Fraction of genes downregulated by Minnelide\n(MCL+Min vs MCL)"
+  )
+
+p_bar
 
 ################################################################################
 #> sessionInfo()
