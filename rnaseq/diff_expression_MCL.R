@@ -465,7 +465,55 @@ ego_up <- enrichGO(gene          = eg.19.up$ENTREZID,
                    pvalueCutoff  = 0.1,
                    qvalueCutoff  = 0.1,
                    readable      = TRUE)
-dotplot(ego_up, showCategory = 10, title = "GO Enrichment Analysis BP upregulated DEGS on chr19")
+dotplot(ego_up, showCategory = 15, title = "GO Enrichment Analysis BP upregulated DEGS on chr19")
+
+
+# Shared upregulated genes in GRANTA and patients
+shared_up <- intersect(
+  rownames(resMCL_naive_blood_up),
+  rownames(resGRANTA_naive_blood_up)
+)
+
+shared_up_chr19 <- intersect(
+  shared_up,
+  gene_id19
+)
+
+eg.shared <- bitr(
+  shared_up_chr19,
+  fromType = "SYMBOL",
+  toType = "ENTREZID",
+  OrgDb = org.Hs.eg.db
+)
+
+common_universe <- intersect(
+  rownames(resMCL_naive_blood),
+  rownames(resGRANTA_naive_blood)
+)
+
+eg.universe <- bitr(
+  common_universe,
+  fromType = "SYMBOL",
+  toType = "ENTREZID",
+  OrgDb = org.Hs.eg.db
+)
+
+ego_shared <- enrichGO(
+  gene          = eg.shared$ENTREZID,
+  universe      = eg.universe$ENTREZID,
+  OrgDb         = org.Hs.eg.db,
+  ont           = "BP",
+  pAdjustMethod = "BH",
+  pvalueCutoff  = 1,
+  qvalueCutoff  = 1,
+  readable      = TRUE
+)
+
+dotplot(
+  ego_shared,
+  showCategory = 15,
+  title = "GO BP enrichment of genes upregulated in both primary MCL and GRANTA"
+)
 
 ################### Exporting expression data for ABC #######################
 MCL_DAG_counts <- counts[,7:11]
@@ -1081,6 +1129,84 @@ p_along19_GRANTA <- ggplot(df19, aes(x = pos)) +
   theme_classic() +
   labs(x = "chr19 coordinate", linetype = NULL) + 
   ggtitle("GRANTA")
+
+
+### Expression for each individual MCL patient
+patient_col <- "#F26767"
+line_cols <- c(
+  Control = "#7CD3F7",
+  setNames(rep(patient_col, length(mcl_cols)), mcl_cols)
+)
+
+y_min_patients <- min(
+  df19_patients$expression_s,
+  df19$expr_Control_s,
+  df19$expr_GRANTA_s,
+  na.rm = TRUE
+)
+
+y_max_patients <- max(
+  df19_patients$expression_s,
+  df19$expr_Control_s,
+  df19$expr_GRANTA_s,
+  na.rm = TRUE
+)
+
+y_height_patients <- (y_max_patients - y_min_patients) * 0.05
+
+p_along19_patients <- ggplot(df19_patients, aes(x = pos)) +
+  geom_rect(
+    xmin = probe_start,
+    xmax = probe_end,
+    ymin = y_min_patients,
+    ymax = y_min_patients + y_height_patients,
+    inherit.aes = FALSE,
+    fill = "#A275B3",
+    alpha = 0.8
+  ) +
+  geom_line(
+    aes(
+      y = expression_s,
+      color = sample,
+      group = sample
+    ),
+    linewidth = 0.8,
+    alpha = 1
+  ) +
+  geom_line(
+    data = df19,
+    aes(
+      x = pos,
+      y = expr_Control_s,
+      color = "Control"
+    ),
+    inherit.aes = FALSE,
+    linewidth = 0.8
+  ) +
+  scale_color_manual(
+    values = line_cols,
+    breaks = c("Control", mcl_cols, "GRANTA")
+  ) +
+  scale_y_continuous(
+    name = "Normalized expression"
+  ) +
+  scale_x_continuous(
+    breaks = seq(0, 6e7, by = 5e6),
+    labels = scales::label_number(
+      scale = 1e-6,
+      suffix = " Mb"
+    )
+  ) +
+  theme_classic() +
+  labs(
+    x = "chr19 coordinate",
+    color = NULL
+  ) +
+  ggtitle("Expression along chr19")
+
+p_along19_patients_zoom <- p_along19_patients +
+  coord_cartesian(xlim = c(0, 6e6))
+
 
 ################### Expression vs distance to FISH probe #######################
 ### Save tables for whole chromosome chr19
