@@ -1132,10 +1132,48 @@ p_along19_GRANTA <- ggplot(df19, aes(x = pos)) +
 
 
 ### Expression for each individual MCL patient
-patient_col <- "#F26767"
+
+gene_pos19 <- data.frame(
+  gene_id = gene_id19,
+  pos = start(gr19) + width(gr19) %/% 2,
+  stringsAsFactors = FALSE
+) %>%
+  distinct(gene_id, .keep_all = TRUE)
+
+df19_patients <- norm[gene_id19, mcl_cols, drop = FALSE] %>%
+  as.data.frame() %>%
+  tibble::rownames_to_column("gene_id") %>%
+  distinct(gene_id, .keep_all = TRUE) %>%
+  left_join(gene_pos19, by = "gene_id") %>%
+  pivot_longer(
+    cols = all_of(mcl_cols),
+    names_to = "sample",
+    values_to = "expression"
+  ) %>%
+  filter(!is.na(pos)) %>%
+  arrange(sample, pos) %>%
+  group_by(sample) %>%
+  mutate(
+    expression_s = zoo::rollmean(
+      expression,
+      k = k,
+      fill = NA,
+      align = "center"
+    )
+  ) %>%
+  ungroup()
+
+
+patient_cols <- rev(c(
+  "#C969A1FF", "#CE4441FF", "#EE8577FF",
+  "#EB7926FF", "#FFBB44FF",
+  "#859B6CFF", "#62929AFF",
+  "#004F63FF", "#122451FF"
+))
+
 line_cols <- c(
   Control = "#7CD3F7",
-  setNames(rep(patient_col, length(mcl_cols)), mcl_cols)
+  setNames(patient_cols[seq_along(mcl_cols)], mcl_cols)
 )
 
 y_min_patients <- min(
@@ -1151,6 +1189,12 @@ y_max_patients <- max(
   df19$expr_GRANTA_s,
   na.rm = TRUE
 )
+
+label_df <- df19_patients %>%
+  filter(!is.na(expression_s)) %>%
+  group_by(sample) %>%
+  slice_min(pos, n = 1) %>%
+  ungroup()
 
 y_height_patients <- (y_max_patients - y_min_patients) * 0.05
 
@@ -1186,6 +1230,18 @@ p_along19_patients <- ggplot(df19_patients, aes(x = pos)) +
   scale_color_manual(
     values = line_cols,
     breaks = c("Control", mcl_cols, "GRANTA")
+  ) +
+  geom_text(
+    data = label_df,
+    aes(
+      x = pos,
+      y = expression_s,
+      label = sample,
+      color = sample
+    ),
+    hjust = 1.05,
+    size = 3,
+    show.legend = FALSE
   ) +
   scale_y_continuous(
     name = "Normalized expression"
