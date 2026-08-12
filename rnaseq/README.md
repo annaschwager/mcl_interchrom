@@ -9,7 +9,7 @@ Raw sequencing data was processed using the [nf-core/rnaseq pipeline (v3.10.1)](
 **1. diff_expression_MCL.R** \
 Performs DESeq2 comparisons of primary MCL samples and GRANTA-519 cells against naïve B-cell controls, with downstream chromosome enrichment, chr19-focused analyses, GO enrichment, positional GSEA, and visualization of chromosome 19 transcriptional patterns.
 
-*Data analysed:* B cells from MCL patients (5 sampels from EGAD00001002336, 4 samples sequenced for this study), control naive B cells (6 samples from EGAD00001002315), GRANTA-519 MCL cells (3 samples, GSE291376).
+*Data analysed:* B cells from MCL patients (5 samples from EGAD00001002336, 4 samples sequenced for this study), control naive B cells (6 samples from EGAD00001002315), GRANTA-519 MCL cells (3 samples, GSE291376).
 
 **2. diff_expression_abe_min_cells.R** \
 Differential expression analysis of MCL cell lines following Minnelide and Abemaciclib treatment. Includes DESeq2 analysis, PCA, gene-set enrichment, treatment-response comparisons, and assessment of transcriptional reversal.
@@ -20,5 +20,10 @@ Differential expression analysis of MCL cell lines following Minnelide and Abema
 **3. diff_expression_abe_min_patient.R** \
 This script performs the same analysis as *diff_expression_abe_min_cells.R* for the cells from an MCL patient.
 
-*Data analysed:* PBMCs from an MCL patient in a leukimic phase, treated with with 25nM/50nM Minnelide for 3 days or 500mkM Abemaciclib for 7 days with the corresponding non-treated controls. 
+*Data analysed:* PBMCs from an MCL patient in a leukemic phase, treated with with 25nM/50nM Minnelide for 3 days or 500mkM Abemaciclib for 7 days with the corresponding non-treated controls. 
+
+**4. external_validation.R** \
+Rank-based validation of the chromosome 19 MCL expression signature across independent public MCL and B-cell lymphoma datasets using singscore.
+
+*Data analysed:* B cells from MCL patients (5 samples from EGAD00001002336, 4 samples sequenced for this study), control naive B cells (6 samples from EGAD00001002315), external validation datasets with primary MCL patient samples (GSE305144, GSE141335, GSE271664) and patients with other lymphomas (GSE132929).
 
