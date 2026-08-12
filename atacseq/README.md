@@ -9,8 +9,8 @@ Briefly, the files were trimmed to get rid of the sequencing adapters using Trim
 ### Scripts in this folder
 
 **1. diffbind_patients_atac.R** \
-Performs differential accessibility analysis between primary MCL samples and naïve B cells from healthy donors using DiffBind, followed by annotation and downstream analysis of differential ATAC-seq peaks.
+Performs differential accessibility analysis between primary MCL samples and naïve B cells using DiffBind. Differentially accessible regions are annotated to genomic features and associated genes, followed by pathway enrichment and chromosome-level analyses. The script also integrates ATAC-seq and RNA-seq changes to assess the relationship between chromatin accessibility and transcription, including a chromosome 19-focused analysis.
 
 **2. diffbind_abemin_atac.R** \
-Performs differential accessibility analysis of MCL (GRANTA-519) and control lymphoblastoid (BLAS) cells following Minnelide or Abemaciclib treatment using DiffBind, followed by functional annotation and downstream analysis of differential ATAC-seq peaks.
+Performs differential accessibility analysis of MCL (GRANTA-519) and control lymphoblastoid (BLAS) cells following Minnelide or Abemaciclib treatment using DiffBind. The script compares treatment-induced accessibility changes with MCL-associated chromatin alterations, quantifies peak overlaps, annotates differential peaks and performs functional enrichment analyses. It also examines chromosome-level accessibility changes and integrates Minnelide-induced ATAC-seq changes with corresponding transcriptional changes.
 
