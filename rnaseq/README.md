@@ -7,18 +7,18 @@ Raw sequencing data was processed using the [nf-core/rnaseq pipeline (v3.10.1)](
 
 ### Scripts in this folder 
 **1. diff_expression_MCL.R** \
-This script takes the count tables obtained at the pre-processing step, performs quality checks, low counts filtering and differential expression analysis with [DESeq2](https://bioconductor.org/packages/release/bioc/html/DESeq2.html). It than performs downstream analyses on the differential genes.\
+This script takes the count tables obtained at the pre-processing step, performs quality checks, low counts filtering and differential expression analysis with [DESeq2](https://bioconductor.org/packages/release/bioc/html/DESeq2.html). It than performs downstream analyses on the differential genes.
 
 *Data analysed:* B cells from MCL patients (5 sampels from EGAD00001002336, 4 samples sequenced for this study and deposited to (** EGA TBD**), control naive B cells (6 samples from EGAD00001002315), GRANTA-519 MCL cells (3 samples, GSE291376).
 
 **2. diff_expression_abe_min_cells.R** \
-This script takes the count tables obtained at the pre-processing step, performs quality checks, low counts filtering and differential expression analysis with [DESeq2](https://bioconductor.org/packages/release/bioc/html/DESeq2.html). It than performs downstream analyses on the differential genes.\
+This script takes the count tables obtained at the pre-processing step, performs quality checks, low counts filtering and differential expression analysis with [DESeq2](https://bioconductor.org/packages/release/bioc/html/DESeq2.html). It than performs downstream analyses on the differential genes.
 
 *Data analysed:* MCL (GRANTA-519) and control (BLAS) cells, treated with 50nM Minnelide for 3 days or 500mkM Abemaciclib for 7 days with the corresponding non-treated controls (GSE291376). 
 
 
-**2. diff_expression_abe_min_patient.R** \
-This script performs the same analysis as *diff_expression_abe_min_cells.R* for the cells from an MCL patient.\
+**3. diff_expression_abe_min_patient.R** \
+This script performs the same analysis as *diff_expression_abe_min_cells.R* for the cells from an MCL patient.
 
 *Data analysed:* PBMCs from an MCL patient in a leukimic phase, treated with with 25nM/50nM Minnelide for 3 days or 500mkM Abemaciclib for 7 days with the corresponding non-treated controls. 
 
