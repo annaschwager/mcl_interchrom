@@ -1,5 +1,5 @@
 ## ATAC-seq analysis 
-This folder contains the scripts used for the downstream analysis and visualisation of the ATAC-seq data from the **article X**. \
+This folder contains the scripts used for the downstream analysis and visualisation of the ATAC-seq data. \
 The raw sequencing data was generated in the CNRS UMR9018 and deposited to [GEO](https://www.ncbi.nlm.nih.gov/geo/) (GSE291374) or downloaded from [EGA](https://ega-archive.org/) (EGAD00001002902, EGAD00001002918).
 
 ### File pre-processing
@@ -9,11 +9,8 @@ Briefly, the files were trimmed to get rid of the sequencing adapters using Trim
 ### Scripts in this folder
 
 **1. diffbind_patients_atac.R** \
-This script takes the bam files and the ATAC peaks detected by [MACS2](https://pypi.org/project/MACS2/) in MCL patients samples and naive B cell samples from healthy donors and identifies the differentially acessible sites between these conditions using [Diffbind](https://bioconductor.org/packages/release/bioc/html/DiffBind.html). It than performs the annotation and downstream analyses on the differential peaks.
-
-*Used for:* Figure 1 a-c, Figure 3 f
+Performs differential accessibility analysis between primary MCL samples and naïve B cells from healthy donors using DiffBind, followed by annotation and downstream analysis of differential ATAC-seq peaks.
 
 **2. diffbind_abemin_atac.R** \
-This script takes the bam files and the ATAC peaks detected by [MACS2](https://pypi.org/project/MACS2/) in MCL (GRANTA) and control lymphoblastoid (BLAS) cell lines treated or not with Minnelide (50 nM, 3days) or Abemaciclib (500nM, 7 days) and identifies the differentially acessible sites between these conditions using [Diffbind](https://bioconductor.org/packages/release/bioc/html/DiffBind.html). It than performs the functional annotation and downstream analyses on the identified peaks. 
+Performs differential accessibility analysis of MCL (GRANTA-519) and control lymphoblastoid (BLAS) cells following Minnelide or Abemaciclib treatment using DiffBind, followed by functional annotation and downstream analysis of differential ATAC-seq peaks.
 
-*Used for:* Figure 5 d-g, Figure S3 b-c
